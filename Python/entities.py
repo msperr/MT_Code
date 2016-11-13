@@ -43,19 +43,19 @@ class Trip:
     location_id = -1
     vehicle_vin = ''
     start_time = datetime.now()
+    finish_time = datetime.now()
     start_loc = Point(0.0, 0.0)
     finish_loc = Point(0.0, 0.0)
-    duration = timedelta()
     distance = 0.0
     servicedrive = False    
 
-    def __init__(self, location_id, vehicle_vin, start_time, duration, distance, servicedrive, start_loc=None, start_longitude=0.0, start_latitude=0.0, finish_loc=None, finish_longitude=0.0, finish_latitude=0.0):
+    def __init__(self, location_id, vehicle_vin, start_time, finish_time, distance, servicedrive, start_loc=None, start_longitude=0.0, start_latitude=0.0, finish_loc=None, finish_longitude=0.0, finish_latitude=0.0):
         self.location_id = location_id
         self.vehicle_vin = vehicle_vin
         self.start_time = start_time
+        self.finish_time = finish_time
         self.start_loc = start_loc if start_loc else Point(start_longitude, start_latitude)
         self.finish_loc = finish_loc if finish_loc else Point(finish_longitude, finish_latitude)
-        self.duration = duration if isinstance(duration, timedelta) else timedelta(seconds = duration)
         self.distance = distance
         self.servicedrive = True if servicedrive else False    
 
@@ -92,22 +92,37 @@ class Trip:
         return repr(self)
 
     @property
-    def finish_time(self):
-        return self.start_time + self.duration
-
-class Route:
+    def duration(self):
+        return self.finish_time - self.start_time
     
-    def __init__(self, trips = []):
-        self.id = id
-        self.trips = trips
+    @staticmethod
+    def parse(trip):
+        return Trip(
+            location_id = trip['location_id'],
+            vehicle_vin = trip['vehicle_vin'],
+            start_time = datetime.strptime(trip['start_time'], '%Y-%m-%d %H:%M:%S'),
+            finish_time = datetime.strptime(trip['finish_time'], '%Y-%m-%d %H:%M:%S'),
+            distance = trip['distance'],
+            servicedrive = trip['servicedrive'],
+            start_longitude = trip['start_longitude'],
+            start_latitude = trip['start_latitude'],
+            finish_longitude = trip['finish_longitude'],
+            finish_latitude = trip['finish_latitude']
+        )
     
-class Customer:
-    
-    id = None
-    
-    def __init__(self, id, routes = []):
-        self.id = id
-        self.routes = routes
+    def __json__(self):
+        return {
+            'location_id': self.location_id,
+            'vehicle_vin': self.vehicle_vin,
+            'start_time': self.start_time.strftime('%Y-%m-%d %H:%M:%S'),
+            'finish_time': self.finish_time.strftime('%Y-%m-%d %H:%M:%S'),
+            'distance': self.distance,
+            'servicedrive': self.servicedrive,
+            'start_longitude': self.start_loc.lon,
+            'start_latitude': self.start_loc.lat,
+            'finish_longitude': self.finish_loc.lon,
+            'finish_latitude': self.finish_loc.lat
+        }
     
 class Vehicle:
 
@@ -116,13 +131,8 @@ class Vehicle:
     start_time = datetime.now()
     fuel = 1.0
 
-    def __init__(self, id, start_time, fuel = 1.0, start_loc = None, longitude = 0.0, latitude = 0.0):
-        if start_loc:
-            if start_loc.lon == 0 or start_loc.lat == 0:
-                raise ValueError('Vehicle with 0-start_coordinates')
-        elif longitude==0 or latitude==0:
-            raise ValueError('Vehicle with 0-start_coordinates')
-        self.id = id
+    def __init__(self, vehicle_id, start_time, fuel = 1.0, start_loc = None, longitude = 0.0, latitude = 0.0):
+        self.id = vehicle_id
         self.start_time = start_time
         self.start_loc = start_loc if start_loc else Point(longitude, latitude)
         self.fuel = fuel
@@ -155,16 +165,34 @@ class Vehicle:
     @property
     def finish_time(self):
         return self.start_time
+    
+    @staticmethod
+    def parse(vehicle):
+        return Vehicle(
+            vehicle_id = vehicle['id'],
+            start_time = datetime.strptime(vehicle['start_time'], '%Y-%m-%d %H:%M:%S'),
+            longitude = vehicle['longitude'],
+            latitude = vehicle['latitude'],
+            fuel = vehicle['fuel']
+        )
+    
+    def __json__(self):
+        return {
+            'id': self.id,
+            'start_time': self.start_time.strftime('%Y-%m-%d %H:%M:%S'),
+            'longitude': self.start_loc.lon,
+            'latitude': self.start_loc.lat,
+            'fuel': self.fuel
+        }
 
 class RefuelPoint(Point):
     
     id = None
+    location = Point(0.0, 0.0)
 
-    def __init__(self, id, lon, lat):
-        if lon==0 or lat==0:
-            raise ValueError('RefuelPoint with 0-coordinates')
-        Point.__init__(self, lon, lat)
-        self.id = id
+    def __init__(self, refuelpoint_id, location = None, longitude = 0.0, latitude = 0.0):
+        self.id = refuelpoint_id
+        self.location = location if location else Point(longitude, latitude)
 
     def __key__(self):
         return (self.id, self.lon, self.lat)
@@ -175,8 +203,26 @@ class RefuelPoint(Point):
     def __eq__(self, other):
         return self.__key__() == other.__key__()
     
+    def __repr__(self):
+        return '%s' % self.id
+    
     def __xpress_index__(self):
         return 'RefuelPoint%s' % self.id
+    
+    @staticmethod
+    def parse(refuelpoint):
+        return RefuelPoint(
+            refuelpoint_id = refuelpoint['id'],
+            longitude = refuelpoint['longitude'],
+            latitude = refuelpoint['latitude']
+        )
+    
+    def __json__(self):
+        return {
+            'id': self.id,
+            'longitude': self.location.lon,
+            'latitude': self.location.lat
+        }
     
 #-----------------------------------------------
 

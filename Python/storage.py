@@ -11,152 +11,85 @@ from instance import instance
 from distance_matrix import DistanceMatrix
 from collections import OrderedDict
 
-def read_vehicles_from_json(filename, fuel=False):
+def load_vehicles_from_json(filename):
     with open(filename) as f:    
         data = json.load(f)
-        if fuel:
-            return [ entities.Vehicle(
-                id=vehicle['id'],
-                longitude=vehicle['longitude'],
-                latitude=vehicle['latitude'],
-                start_time=datetime.strptime(vehicle['start_time'], '%Y-%m-%d %H:%M:%S'),
-                fuel=vehicle['fuellevel']
-            ) for vehicle in data['vehicles'] ]
-        else:
-            return [ entities.Vehicle(
-                id=vehicle['id'],
-                longitude=vehicle['longitude'],
-                latitude=vehicle['latitude'],
-                start_time=datetime.strptime(vehicle['start_time'], '%Y-%m-%d %H:%M:%S')
-            ) for vehicle in data['vehicles'] ]
+        return [entities.Vehicle.parse(vehicle) for vehicle in data['vehicles']]
 
-def save_vehicles_to_json(vehicles, filename, fuel=False):
-    if fuel:
-        data = {
-            'vehicles': [{
-                'id': vehicle.id,
-                'longitude': vehicle.start_loc.lon,
-                'latitude': vehicle.start_loc.lat,
-                'start_time': str(vehicle.start_time),
-                'fuel': vehicle.fuel
-            } for vehicle in vehicles]
-        }
-    else:
-        data = {
-            'vehicles': [{
-                'id': vehicle.id,
-                'longitude': vehicle.start_loc.lon,
-                'latitude': vehicle.start_loc.lat,
-                'start_time': str(vehicle.start_time),
-            } for vehicle in vehicles],
-        }    
-    with open(filename,'w') as f:
-        json.dump(data, f)
+def save_vehicles_to_json(vehicles, filename, fuel=False):   
+    with open(filename,'w'):
+        json.dump({'vehicles': [vehicle.__json__() for vehicle in vehicles]})
+
+def load_refuelpoints_from_json(filename):
+    with open(filename) as f:
+        data = json.load(f)
+        return [entities.RefuelPoint.parse(refuelpoint) for refuelpoint in data['refuelpoints']]
 
 def save_refuelpoints_to_json(refuelpoints, filename):
+    with open(filename,'w'):
+        json.dump({'refuelpoints': [refuelpoint.__json__() for refuelpoint in refuelpoints]})
+        
+def load_instance_from_json(filename):
+    
+    with open(filename) as f:
+        data = json.load(f)
+    
+    customers = OrderedDict((customer['id'], [route['id'] for route in customer['routes']]) for customer in data['customers'])
+    routes = OrderedDict((route['id'], [entities.Trip.parse(trip) for trip in route['trips']]) for customer in data['customers'] for route in customer['routes'])
+    vehicles = [entities.Vehicle.parse(vehicle) for vehicle in data['vehicles']]
+    refuelpoints = [entities.RefuelPoint.parse(refuelpoint) for refuelpoint in data['refuelpoints']]
+    
+    fuelpermeter = data['fuelpermeter']
+    refuelpersecond = data['refuelpersecond']
+    costpermeter = data['costpermeter']
+    costpercar = data['costpercar']
+    
+    inst = instance(vehicles, customers, routes, refuelpoints, fuelpermeter, refuelpersecond, costpermeter, costpercar)
+    
+    basename, _ = os.path.splitext(filename)
+    inst._basename = basename
+    
+    if 'time' in data:
+        inst._time = numpy.array(data['time'], dtype = float)
+    
+    if 'dist' in data:
+        inst._dist = numpy.array(data['dist'], dtype = float)
+    
+    if 'paretorefuelpoints' in data:
+        inst._paretorefuelpoints = data['paretorefuelpoints']
+    
+    if 'initialfuel' in data:
+        inst._initialfuel = numpy.array(data['initialfuel'], dtype = float)
+    
+    return inst
+
+def save_instance_to_json(filename, instance):
+    
     data = {
-        'refuelpoints': [{
-            'id': refuelpoint.id,
-            'longitude': refuelpoint.lon,
-            'latitude': refuelpoint.lat
-        } for refuelpoint in refuelpoints]
-    }
-    with open(filename,'w') as f:
-        json.dump(data, f)
- 
-def save_instance_to_json(filename, vehicles, refuelpoints, customers, fuelpermeter, refuelpersecond, matrices=False, spots=[], splitpoints=[], fuel=False):    
-    trips = [trip for trip in [route.trips for route in [customer.routes for customer in customers]]];
-    indices = vehicles + refuelpoints + trips + spots
-    if fuel:        
-        data = {        
-            'vehicles': [{
-                'id': vehicle.id,
-                'longitude': vehicle.start_loc.lon,
-                'latitude': vehicle.start_loc.lat,
-                'start_time': str(vehicle.start_time),
-                'fuel': vehicle.fuel
-            } for vehicle in vehicles],       
-            'refuelpoints': [{
-                'id': refuelpoint.id,
-                'longitude': refuelpoint.lon,
-                'latitude': refuelpoint.lat
-            } for refuelpoint in refuelpoints],        
+            'fuelpermeter': instance._fuelpermeter,
+            'refuelpersecond': instance._refuelpersecond,
+            'costpermeter': instance._costpermeter,
+            'costpercar': instance._costpercar,
+            'vehicles': [vehicle.__json__() for vehicle in instance._vehicles],
+            'refuelpoints': [refuelpoint.__json__() for refuelpoint in instance._refuelpoints],
             'customers': [{
-                'id': customer.id,
+                'id': customer,
                 'routes': [{
-                    'trips': [{
-                        'location_id': trip.location_id,
-                        'vehicle_vin': trip.vehicle_vin,
-                        'start_time': str(trip.start_time),
-                        'start_longitude': trip.start_loc.lon,
-                        'start_latitude': trip.start_loc.lat,
-                        'finish_longitude': trip.finish_loc.lon,
-                        'finish_latitude': trip.finish_loc.lat,
-                        'duration': trip.duration.total_seconds(),
-                        'distance': trip.distance,
-                        'servicedrive': trip.servicedrive
-                    } for trip in route.trips]
-                } for route in customer.route]
-            } for customer in customers],
-            'spots': [{
-                'id': spot.id,
-                'longitude': spot.start_loc.lon,
-                'latitude': spot.start_loc.lat,
-                'start_time': str(spot.start_time)
-            } for spot in spots],                     
-            'splitpoints': [{
-                'id': splitpoint.id,
-                'time': str(splitpoint.time),
-                'weight': splitpoint.weight,
-                'fuel': spot.fuel
-            } for splitpoint in splitpoints],
-            'fuelpermeter': fuelpermeter,
-            'refuelpersecond': refuelpersecond
+                    'id': route,
+                    'trips': [trip.__json__() for trip in instance._routes.get(route)]
+                    } for route in routes]
+            } for customer, routes in instance._customers.iteritems()]
         }
-    else:
-        data = {
-            'vehicles': [{
-                'id': vehicle.id,
-                'longitude': vehicle.start_loc.lon,
-                'latitude': vehicle.start_loc.lat,
-                'start_time': str(vehicle.start_time),
-            } for vehicle in vehicles],        
-            'refuelpoints': [{
-                'id': refuelpoint.id,
-                'longitude': refuelpoint.lon,
-                'latitude': refuelpoint.lat
-            } for refuelpoint in refuelpoints],        
-            'customers': [{
-                'id': customer.id,
-                'routes': [{
-                    'trips': [{
-                        'location_id': trip.location_id,
-                        'vehicle_vin': trip.vehicle_vin,
-                        'start_time': str(trip.start_time),
-                        'start_longitude': trip.start_loc.lon,
-                        'start_latitude': trip.start_loc.lat,
-                        'finish_longitude': trip.finish_loc.lon,
-                        'finish_latitude': trip.finish_loc.lat,
-                        'duration': trip.duration.total_seconds(),
-                        'distance': trip.distance,
-                        'servicedrive': trip.servicedrive
-                    } for trip in route.trips]
-                } for route in customer.route]
-            } for customer in customers],
-            'spots': [{
-                'id': spot.id,
-                'longitude': spot.start_loc.lon,
-                'latitude': spot.start_loc.lat,
-                'start_time': str(spot.start_time),
-            } for spot in spots],
-            'fuelpermeter': fuelpermeter,
-            'refuelpersecond': refuelpersecond
-        }
-    if matrices:
-        data.update({
-            'time': DistanceMatrix.time(indices, indices),
-            'dist': DistanceMatrix.dist(indices, indices)
-        })
+    
+    if not instance._time is None:
+        data['time'] = instance._time.tolist()
+    if not instance._dist is None:
+        data['dist'] = instance._dist.tolist()
+    if not instance._paretorefuelpoints is None:
+        data['paretorefuelpoints'] = instance._paretorefuelpoints
+    if not instance._initialfuel is None:
+        data['initialfuel'] = instance._initialfuel.tolist()
+    
     with open(filename, 'w') as f:
         json.dump(data, f)
 
@@ -254,7 +187,7 @@ def read_spots_from_json_file(filename):
 # deprecated methods
 ###############################################################################
 
-def read_refuelpoints_from_json_deprecated(filename):
+def load_refuelpoints_from_json_deprecated(filename):
     with open(filename) as f:    
         data = json.load(f)
         return [ entities.RefuelPoint(
@@ -263,7 +196,7 @@ def read_refuelpoints_from_json_deprecated(filename):
             station['coordinates']['latitude']
         ) for station in data['chargeStations'] ]
 
-def read_instance_from_json_knoll(filename, fuel=False):
+def load_instance_from_json_deprecated(filename, fuel=False):
     
     with open(filename) as f:
         data = json.load(f)
@@ -292,7 +225,7 @@ def read_instance_from_json_knoll(filename, fuel=False):
     
     if fuel:
         vehicles = [ entities.Vehicle(
-            id=vehicle['id'],
+            vehicle_id=vehicle['id'],
             longitude=vehicle['longitude'], 
             latitude=vehicle['latitude'],
             start_time=datetime.strptime(vehicle['start_time'], '%Y-%m-%d %H:%M:%S'),
@@ -333,7 +266,7 @@ def read_instance_from_json_knoll(filename, fuel=False):
         
         return refuelpoints, vehicles, trips, fuelpermeter, refuelpersecond
 
-def read_instance_from_json_customer(filename):
+def load_instance_from_json_customer(filename):
     
     with open(filename) as f:
         data = json.load(f)
@@ -344,13 +277,13 @@ def read_instance_from_json_customer(filename):
             location_id=trip['location_id'],
             vehicle_vin=trip['vehicle_vin'],
             start_time=datetime.strptime(trip['start']['time'], '%Y-%m-%d %H:%M:%S'),
+            finish_time=datetime.strptime(trip['finish']['time'], '%Y-%m-%d %H:%M:%S'),
+            distance=trip['distance'],
+            servicedrive=trip['servicedrive'],
             start_longitude=trip['start']['lon'],
             start_latitude=trip['start']['lat'],
             finish_longitude=trip['finish']['lon'],
-            finish_latitude=trip['finish']['lat'],
-            duration=datetime.strptime(trip['finish']['time'], '%Y-%m-%d %H:%M:%S')-datetime.strptime(trip['start']['time'], '%Y-%m-%d %H:%M:%S'),
-            distance=trip['distance'],
-            servicedrive=trip['servicedrive']
+            finish_latitude=trip['finish']['lat']
         ) for trip in customer['trips'] ]
     ) for customer in data['customers'])
     
@@ -366,7 +299,7 @@ def read_instance_from_json_customer(filename):
             routes.update(dict([(route_index, [trip])]))
     
     vehicles = [ entities.Vehicle(
-        id=vehicle['id'],
+        vehicle_id=vehicle['id'],
         longitude=vehicle['coordinates']['lon'],
         latitude=vehicle['coordinates']['lat'],
         start_time=datetime.strptime(vehicle['time'], '%Y-%m-%d %H:%M:%S'),
@@ -374,9 +307,9 @@ def read_instance_from_json_customer(filename):
     ) for vehicle in data['vehicles'] ]
     
     refuelpoints = [ entities.RefuelPoint(
-        id=refuelpoint['id'],
-        lon=refuelpoint['coordinates']['lon'],
-        lat=refuelpoint['coordinates']['lat']
+        refuelpoint_id=refuelpoint['id'],
+        longitude=refuelpoint['coordinates']['lon'],
+        latitude=refuelpoint['coordinates']['lat']
     ) for refuelpoint in data['refuelpoints'] ]
     
     fuelpermeter = data['fuelpermeter']
@@ -386,7 +319,7 @@ def read_instance_from_json_customer(filename):
     
     inst = instance(vehicles, customers, routes, refuelpoints, fuelpermeter, refuelpersecond, costpermeter, costpercar)
     
-    basename = os.path.splitext(filename)
+    basename, _ = os.path.splitext(filename)
     inst._basename = basename
     
     if 'time' in data:

@@ -1,9 +1,8 @@
 from collections import OrderedDict
 from itertools import izip
+from datetime import timedelta
 
 import numpy
-
-basename = r'..\data\instance'
 
 class instance:
     _basename = ''
@@ -16,6 +15,7 @@ class instance:
     _vehicles = []
     _customers = {}
     _routes = {}
+    _customertrips = {}
     _trips = []
     _refuelpoints = []
     _index = {}
@@ -36,12 +36,10 @@ class instance:
         self._customers = OrderedDict(customers)
         self._routes = OrderedDict(routes)
         
-        customers = OrderedDict()
-        for (customer, tmp_routes) in self._customers.iteritems():
-            customers.update(OrderedDict([(customer, [trip for route in tmp_routes for trip in self._routes.get(route)])]))
+        self._customertrips = OrderedDict((customer, [trip for route in routes for trip in self._routes.get(route)]) for (customer, routes) in self._customers.iteritems())
         
         triproutetable, trips = izip(*sorted([(r, t) for (r, ts) in self._routes.iteritems() for t in ts], key=lambda (r,t): (t.start_time, t.duration, t.distance, t.start_loc, t.finish_loc)))
-        tripcustomertable, _ = izip(*sorted([(c, t) for (c, ts) in customers.iteritems() for t in ts], key=lambda (c,t): (t.start_time, t.duration, t.distance, t.start_loc, t.finish_loc)))
+        tripcustomertable, _ = izip(*sorted([(c, t) for (c, ts) in self._customertrips.iteritems() for t in ts], key=lambda (c,t): (t.start_time, t.duration, t.distance, t.start_loc, t.finish_loc)))
         
         self._trips = list(trips)
         self._routetable = numpy.array([-1] * len(self._vehicles) + list(triproutetable), dtype=numpy.int32)
@@ -70,8 +68,53 @@ class instance:
     def extendedvertices(self):
         return self._vehicles + self._trips + self._refuelpoints
     
+    @property
+    def maxrange(self):
+        return 1.0 / self._fuelpermeter
+    
     def customer(self, t):
         return self._customers.keys()[self._customertable[self._index[t]]];
     
     def route(self, t):
         return self._routes.keys()[self._routetable[self._index[t]]];
+    
+    def customer_starttime(self, t):
+        return min(map((lambda t: t.start_time), self._customertrips.get(self.customer(t))))
+    
+    def time(self, s, t):
+        return self._time[self._index[s], self._index[t]]
+
+    def timedelta(self, s=None, t=None):
+        return timedelta(seconds=self._time[self._index[s], self._index[t]])
+
+    def dist(self, s, t):
+        if isinstance(s, list) and isinstance(t, list):
+            return [[self._dist[self._index[tmp_s], self._index[tmp_t]] for tmp_t in t] for tmp_s in s]
+        return self._dist[self._index[s], self._index[t]]
+
+    def fuel(self, s, t=None):
+        return self._fuelpermeter * (self._dist[self._index[s], self._index[t]] if t else 0.0 if self._index[s] < len(self._vehicles) else s.distance * 1000.0)
+
+    def cost(self, s, t=None):
+        return (self._costpercar if self._index[s] < len(self._vehicles) else 0) + self._costpermeter * self._dist[self._index[s], self._index[t]] if t else 0.0 if self._index[s] < len(self._vehicles) else self._costpermeter * 1000.0 * s.distance
+
+    def initialfuel(self, s):
+        return self._initialfuel[self._index[s]]
+    
+    def subinstance(self, vehicles=None, customers=None, refuelpoints=None):
+        #customers = OrderedDict((customer, self._customers.get(customer)) for customer in )
+        vehicles = list(self._vehicles if vehicles is None else vehicles)
+        customers = OrderedDict((customer, self._customers.get(customer)) for customer in (self._customers.iterkeys() if customers is None else customers))
+        routes = OrderedDict((route, self._routes.get(route)) for routes in customers.itervalues() for route in routes)
+        refuelpoints = list(self._refuelpoints if refuelpoints is None else refuelpoints)
+
+        subinst = instance(vehicles, customers, routes, refuelpoints, self._fuelpermeter, self._refuelpersecond, self._costpermeter, self._costpercar)
+        
+        indices = numpy.fromiter((self._index[v] for v in subinst.vertices), dtype=numpy.int)
+        extindices = numpy.fromiter((self._index[v] for v in subinst.extendedvertices), dtype=numpy.int)
+
+        subinst._time = None if self._time is None else self._time[extindices[:,None], extindices[None,:]]
+        subinst._dist = None if self._dist is None else self._dist[extindices[:,None], extindices[None,:]]
+        subinst._paretorefuelpoints = [[list(self._paretorefuelpoints[i][j]) for j in indices] for i in indices] if self._paretorefuelpoints else None
+
+        return subinst

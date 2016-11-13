@@ -10,14 +10,10 @@ import os
 import requests
 
 import entities
+import util
 
 with open('config.json', 'r') as f:
     config = json.load(f)
-
-def grouper(iterable, n, fillvalue=None):
-    "Collect data into fixed-length chunks or blocks"
-    args = [iter(iterable)] * n
-    return izip_longest(fillvalue=fillvalue, *args)
 
 def distance_matrix_get_many_to_many_parallel_initializer(host_queue):
     global osrm_host
@@ -126,7 +122,7 @@ class DistanceMatrix:
 
         DistanceMatrix.prepare(these, those)
 
-        for times, distances in DistanceMatrix.pool.imap_unordered(distance_matrix_get_many_to_many_parallel_func, product(grouper(these, DistanceMatrix.max_table_size), grouper(those, DistanceMatrix.max_table_size))):
+        for times, distances in DistanceMatrix.pool.imap_unordered(distance_matrix_get_many_to_many_parallel_func, product(util.grouper(these, DistanceMatrix.max_table_size), util.grouper(those, DistanceMatrix.max_table_size))):
             for (src, trgt), time in times.iteritems():
                 DistanceMatrix._time[DistanceMatrix.row_index(src)][DistanceMatrix.col_index(trgt)] = time.total_seconds()
             for (src, trgt), dist in distances.iteritems():
