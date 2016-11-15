@@ -223,6 +223,41 @@ class RefuelPoint(Point):
             'longitude': self.location.lon,
             'latitude': self.location.lat
         }
+
+class Splitpoint:
+
+    id = None
+    successor = Point(0.0, 0.0)
+    time = datetime.now()
+    weight = -1
+
+    def __init__(self, splitpoint_id, time, weight = -1):
+        self.id = splitpoint_id
+        self.time = time
+        self.weight = weight
+
+    def __key__(self):
+        return (self.id, self.time)
+
+    def __hash__(self):
+        return hash(self.__key__())
+
+    def __eq__(self, other):
+        return isinstance(other, Splitpoint) and self.__key__() == other.__key__()
+
+    def __repr__(self):
+        return str(self.id)
+
+    def __xpress_index__(self):
+        return str(self.id)    
+
+    @property
+    def finish_time(self):
+        return self.time
+
+    @property
+    def start_time(self):
+        return self.time
     
 #-----------------------------------------------
 
@@ -297,44 +332,7 @@ class Spot:
     def finish_time(self):
         return self.start_time
     
-class Splitpoint:
 
-    id = None
-    successor = Point(0.0, 0.0)
-    time = datetime.now()
-    weight = -1
-
-    def __init__(self, id, time, weight = -1):
-#    def __init__(self, id, successor, time, weight = -1):
-        self.id = id
-#        self.successor = successor
-        self.time = time
-        self.weight = weight
-
-    def __key__(self):
-#        return (self.id, self.successor, self.time)
-        return (self.id, self.time)
-
-    def __hash__(self):
-        return hash(self.__key__())
-
-    def __eq__(self, other):
-        return isinstance(other, Splitpoint) and self.__key__() == other.__key__()
-
-    def __repr__(self):
-#        return 'Split%s' % (self.successor)
-        return str(self.id)
-
-    def __xpress_index__(self):
-        return str(self.id)    
-
-    @property
-    def finish_time(self):
-        return self.time
-
-    @property
-    def start_time(self):
-        return self.time
 
 def instance_check(trips,vehicles,vehicle_range=135000):
     errornumber = 0

@@ -23,12 +23,6 @@ def xpress_value(obj):
 def xpress_data_string(ordereddict):
     return "\n".join(('%s: %s' % (name, xpress_value(value))) for name, value in ordereddict.iteritems())
 
-
-
-
-
-
-
 def xpress_write(f, ordereddict):
     for name, value in ordereddict.iteritems():
         f.write(name)

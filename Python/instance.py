@@ -72,11 +72,19 @@ class instance:
     def maxrange(self):
         return 1.0 / self._fuelpermeter
     
+    @property
+    def starttime(self):
+        return min(map((lambda t: t.start_time), self._trips))
+    
+    @property
+    def finishtime(self):
+        return max(map((lambda t: t.finish_time), self._trips))
+    
     def customer(self, t):
-        return self._customers.keys()[self._customertable[self._index[t]]];
+        return self._customertable[self._index[t]];
     
     def route(self, t):
-        return self._routes.keys()[self._routetable[self._index[t]]];
+        return self._routetable[self._index[t]];
     
     def customer_starttime(self, t):
         return min(map((lambda t: t.start_time), self._customertrips.get(self.customer(t))))

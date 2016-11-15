@@ -1,17 +1,13 @@
 from multiprocessing import Pool
-import time as timemodule
-from datetime import timedelta
 import itertools
+from collections import OrderedDict
+import json
 
 import networkx
 
 import entities
 import util
-
-def grouper(iterable, n):
-    "Collect data into fixed-length chunks or blocks"
-    args = [iter(iterable)] * n
-    return ([item for item in group if item] for group in itertools.izip_longest(fillvalue=None, *args))
+import xpress
 
 def create_taskgraph_preprocessing(args):
     instance, vertices = args
@@ -81,10 +77,8 @@ def create_taskgraph(instance):
     pool = Pool(4)
 
     original = {t: t for t in itertools.chain(instance._vehicles, instance._refuelpoints, instance._trips, spots)}
-
-    starttime = timemodule.clock()
     
-    for edges in pool.imap_unordered(create_taskgraph_preprocessing, ((instance, these) for these in grouper(instance.vertices, 100))):
+    for edges in pool.imap_unordered(create_taskgraph_preprocessing, ((instance, these) for these in util.grouperList(instance.vertices, 100))):
         for s, t, attr in edges:
             attr['refuelpoint'] = original[attr['refuelpoint']] if attr['refuelpoint'] else None
             G.add_edge(original[s], original[t], attr)
@@ -95,11 +89,131 @@ def create_taskgraph(instance):
 
     pool.terminate()
     pool.join()
-        
-    print 'Time elapsed: ', (timemodule.clock() - starttime)
 
     G.add_edges_from((s, de) for s in instance._vehicles)
     G.add_edges_from((t, de) for t in instance._trips)
     G.add_edges_from((s, de) for s in spots)
 
     return G
+
+def split_taskgraph_single(G, startpoints, endpoints, splittime, index):
+    splitpoints = []
+    for endpoint in endpoints:
+        splitpoint_id = 'Split%s_%d' % (endpoint, index + 1)
+        splitpoint = entities.Splitpoint(splitpoint_id = splitpoint_id, time = splittime)
+        splitpoints.append(splitpoint)
+        G.add_node(splitpoint,{
+            'ft': 0.0
+        })
+        attr = dict()
+        attr['refuelpoint'] = None
+        attr['fe'] = 0.0
+        attr['fg'] = 0.0
+        attr['fh'] = 0.0
+        attr['fd'] = 0.0
+        attr['fr'] = 0.0
+        G.add_edge(splitpoint, endpoint, attr)
+        for startpoint in startpoints:
+            attr =  G.get_edge_data(startpoint, endpoint, default = 0)
+            if attr:
+                G.add_edge(startpoint, splitpoint, attr)
+                G.remove_edge(startpoint, endpoint)
+    return G, splitpoints
+
+def split_taskgraph(instance, G, timepoints):    
+    splitpoint_list = []
+    trip_list = []
+    trips = instance._trips
+
+    for (index, timepoint) in enumerate(timepoints):
+        startpoints = instance._vehicles
+        endpoints = []
+        partialtrips = []     
+        for trip in trips:
+            if instance.customer_starttime(trip) >= timepoint:
+                endpoints.append(trip)
+            else:
+                startpoints.append(trip)
+                partialtrips.append(trip)
+        trips = endpoints
+        G, splitpoints = split_taskgraph_single(G, startpoints, endpoints, timepoint, index)
+        splitpoint_list.append(splitpoints)
+        trip_list.append(partialtrips)
+    trip_list.append(trips)
+    splitpoint_list.append([])
+    return G, splitpoint_list, trip_list
+
+def save_taskgraph_to_xpress(instance, G, filename):
+
+    data = OrderedDict([
+        ('DS', G.graph['ds']),
+        ('DE', G.graph['de']),
+        ('Vehicles', (xpress.xpress_index(s) for s in G.nodes_iter() if isinstance(s, entities.Vehicle))),
+        ('Trips', (xpress.xpress_index(t) for t in G.nodes_iter() if isinstance(t, entities.Trip))),
+        ('Splitpoints', (xpress.xpress_index(s) for s in G.nodes_iter() if isinstance(s, entities.Splitpoint))),
+        ('Refuelpoints', (xpress.xpress_index(r) for r in instance._refuelpoints))
+        ('Trip_Refuelpoints', (((v, w), xpress.xpress_index(attr['refuelpoint']) if attr['refuelpoint'] else '') for v, w, attr in G.edges_iter(data=True) if 'refuelpoint' in attr)),
+        ('Nin', ((v, (xpress.xpress_index(w) for w in G.predecessors_iter(v))) for v in G.nodes())),
+        ('Nout', ((v, (xpress.xpress_index(w) for w in G.successors_iter(v))) for v in G.nodes())),
+        ('F0', ((v, attr['f0']) for v, attr in G.nodes_iter(data=True) if 'f0' in attr)),
+        ('FT', ((v, attr['ft']) for v, attr in G.nodes_iter(data=True) if 'ft' in attr)),
+        ('FE', (((v, w), attr['fe']) for v, w, attr in G.edges_iter(data=True) if 'fe' in attr)),
+        ('FG', (((v, w), attr['fg']) for v, w, attr in G.edges_iter(data=True) if 'fg' in attr)),
+        ('FH', (((v, w), attr['fh']) for v, w, attr in G.edges_iter(data=True) if 'fh' in attr)),
+        ('FD', (((v, w), attr['fd']) for v, w, attr in G.edges_iter(data=True) if 'fd' in attr)),
+        ('FR', (((v, w), attr['fr']) for v, w, attr in G.edges_iter(data=True) if 'fr' in attr)),
+        ('Customers', (c for c in instance._customers.iterkeys())),
+        ('Customer_Routes', ((c, r) for (c, r) in instance._customers.iteritems())),
+        ('Routes', ((r, [xpress.xpress_index(t)]) for (r, t) in instance._routes.iteritems()))
+    ])
+
+    with open(filename, 'w') as f:
+        xpress.xpress_write(f, data)
+
+def save_split_taskgraph_to_xpress(instance, G, splitpoint_list, trip_list, filename):
+    assert len(splitpoint_list) == len(trip_list)
+    
+    indices = range(1, len(splitpoint_list) + 1)
+    data = OrderedDict([
+        ('I', (i for i in indices)),
+        ('T_Partial', ((i, (xpress.xpress_index(v) for v in trip_list[i-1])) for i in indices)),
+        ('P_Partial', ((i, (xpress.xpress_index(v) for v in splitpoint_list[i-1])) for i in indices)),
+        ('DS', G.graph['ds']),
+        ('DE', G.graph['de']),
+        ('SP', (xpress.xpress_index(s) for s in G.nodes_iter() if isinstance(s, entities.Vehicle))),
+        ('T', (xpress.xpress_index(t) for t in G.nodes_iter() if isinstance(t, entities.Trip))),
+        ('P', (xpress.xpress_index(s) for s in G.nodes_iter() if isinstance(s, entities.Splitpoint))),
+        ('RT', (((v, w), xpress.xpress_index(attr['refuelpoint']) if attr['refuelpoint'] else '') for v, w, attr in G.edges_iter(data=True) if 'refuelpoint' in attr)),
+        ('Nin', ((v, (xpress.xpress_index(w) for w in G.predecessors_iter(v))) for v in G.nodes())),
+        ('Nout', ((v, (xpress.xpress_index(w) for w in G.successors_iter(v))) for v in G.nodes())),
+        ('F0', ((v, attr['f0']) for v, attr in G.nodes_iter(data=True) if 'f0' in attr)),
+        ('FT', ((v, attr['ft']) for v, attr in G.nodes_iter(data=True) if 'ft' in attr)),
+        ('FE', (((v, w), attr['fe']) for v, w, attr in G.edges_iter(data=True) if 'fe' in attr)),
+        ('FG', (((v, w), attr['fg']) for v, w, attr in G.edges_iter(data=True) if 'fg' in attr)),
+        ('FH', (((v, w), attr['fh']) for v, w, attr in G.edges_iter(data=True) if 'fh' in attr)),
+        ('FD', (((v, w), attr['fd']) for v, w, attr in G.edges_iter(data=True) if 'fd' in attr)),
+        ('FR', (((v, w), attr['fr']) for v, w, attr in G.edges_iter(data=True) if 'fr' in attr)),
+        ('C', ((xpress.xpress_index(c), [xpress.xpress_index(r)]) for (c, r) in instance._customers.iteritems())),
+        ('M', ((xpress.xpress_index(r), [xpress.xpress_index(t)]) for (r, t) in instance._routes.iteritems()))
+    ])
+    
+    with open(filename, 'w') as f:
+        xpress.xpress_write(f, data)
+
+def save_taskgraph_to_json(G,filename):
+    dictionary = dict()
+    dictionary['nodes'] = []
+    for node, attributes in G.nodes_iter(data = True):
+        nodedict = dict()
+        nodedict['attributes'] = attributes
+        nodedict['successors'] = dict()
+        for successor in G.successors_iter(node):
+            edgeattributes = G.edge[node][successor]
+            if ('refuelpoint' in edgeattributes) and edgeattributes['refuelpoint']:
+                edgeattributes['refuelpoint'] = xpress.xpress_index(edgeattributes['refuelpoint'])
+            nodedict['successors'][xpress.xpress_index(successor) if isinstance(successor, entities.Vehicle) or isinstance(successor, entities.Trip) or isinstance(successor, entities.Splitpoint) else successor] = edgeattributes
+        dictionary['nodes'].append({xpress.xpress_index(node) if isinstance(node,entities.Vehicle) or isinstance(node,entities.Trip) or isinstance(node,entities.Splitpoint) else node : nodedict})
+    dictionary['attributes'] = G.graph
+    
+    with open(filename, 'w') as f:
+        json.dump(dictionary,f)
