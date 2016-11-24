@@ -25,6 +25,8 @@ def create_taskgraph_preprocessing(args):
                 
                 edge = (s, t, {
                     'refuelpoint': p,
+                    'ce': instance.dist(s, t) * instance._costpermeter,
+                    'cd': (instance.dist(s, p) + instance.dist(p, t) - instance.dist(s, t)) * instance._costpermeter if p else 0.0,
                     'fe': instance.dist(s, t) * instance._fuelpermeter,
                     'fg': instance.dist(s, p) * instance._fuelpermeter if p else 1.1,
                     'fh': instance.dist(p, t) * instance._fuelpermeter if p else 1.1,
@@ -39,23 +41,21 @@ def create_taskgraph_preprocessing(args):
                         edge[2]['fh'] = 1.1
                         edge[2]['fd'] = 1.1
                         edge[2]['fr'] = 0.0
-                    else:
-                        if edge[2]['fg'] + edge[2]['fh'] < edge[2]['fe']:
+                    elif edge[2]['fg'] + edge[2]['fh'] < edge[2]['fe']:
                             edge[2]['fe'] = edge[2]['fg'] + edge[2]['fh']
-                            edge[2]['fd']=0.0
+                            edge[2]['fd'] = 0.0
                 edges.append(edge)
                 
     return edges
 
 def create_taskgraph(instance):
-    
-    #TODO
+
     spots = []
 
     ds = 'DEPOTSTART'
     de = 'DEPOTEND'
 
-    G = networkx.DiGraph(ds=ds, de=de, fuelpermeter=instance._fuelpermeter, refuelpersecond=instance._refuelpersecond)
+    G = networkx.DiGraph(ds=ds, de=de, fuelpermeter=instance._fuelpermeter, refuelpersecond=instance._refuelpersecond, costpermeter=instance._costpermeter, costpercar=instance._costpercar)
 
     G.add_node(ds)
     G.add_node(de)
@@ -65,7 +65,8 @@ def create_taskgraph(instance):
     }) for s in instance._vehicles)
 
     G.add_nodes_from((t, {
-        'ft': t.distance * 1000.0 * instance._fuelpermeter
+        'ft': t.distance * 1000.0 * instance._fuelpermeter,
+        'ct': t.distance * 1000.0 * instance._costpermeter
     }) for t in instance._trips)
 
     G.add_nodes_from((s, {
@@ -82,10 +83,6 @@ def create_taskgraph(instance):
         for s, t, attr in edges:
             attr['refuelpoint'] = original[attr['refuelpoint']] if attr['refuelpoint'] else None
             G.add_edge(original[s], original[t], attr)
-
-#     for s, t, attr in create_taskgraph_preprocessing(instance):
-#         attr['refuelpoint'] = original[attr['refuelpoint']] if attr['refuelpoint'] else None
-#         G.add_edge(original[s], original[t], attr)
 
     pool.terminate()
     pool.join()
@@ -151,8 +148,7 @@ def save_taskgraph_to_xpress(instance, G, filename):
         ('Vehicles', (xpress.xpress_index(s) for s in G.nodes_iter() if isinstance(s, entities.Vehicle))),
         ('Trips', (xpress.xpress_index(t) for t in G.nodes_iter() if isinstance(t, entities.Trip))),
         ('Splitpoints', (xpress.xpress_index(s) for s in G.nodes_iter() if isinstance(s, entities.Splitpoint))),
-        ('Refuelpoints', (xpress.xpress_index(r) for r in instance._refuelpoints))
-        ('Trip_Refuelpoints', (((v, w), xpress.xpress_index(attr['refuelpoint']) if attr['refuelpoint'] else '') for v, w, attr in G.edges_iter(data=True) if 'refuelpoint' in attr)),
+        ('Refuelpoints', (((v, w), xpress.xpress_index(attr['refuelpoint']) if attr['refuelpoint'] else '') for v, w, attr in G.edges_iter(data=True) if 'refuelpoint' in attr)),
         ('Nin', ((v, (xpress.xpress_index(w) for w in G.predecessors_iter(v))) for v in G.nodes())),
         ('Nout', ((v, (xpress.xpress_index(w) for w in G.successors_iter(v))) for v in G.nodes())),
         ('F0', ((v, attr['f0']) for v, attr in G.nodes_iter(data=True) if 'f0' in attr)),
@@ -162,9 +158,13 @@ def save_taskgraph_to_xpress(instance, G, filename):
         ('FH', (((v, w), attr['fh']) for v, w, attr in G.edges_iter(data=True) if 'fh' in attr)),
         ('FD', (((v, w), attr['fd']) for v, w, attr in G.edges_iter(data=True) if 'fd' in attr)),
         ('FR', (((v, w), attr['fr']) for v, w, attr in G.edges_iter(data=True) if 'fr' in attr)),
+        ('CT', ((v, attr['ct']) for v, attr in G.nodes_iter(data=True) if 'ct' in attr)),
+        ('CE', (((v, w), attr['ce']) for v, w, attr in G.edges_iter(data=True) if 'ce' in attr)),
+        ('CD', (((v, w), attr['cd']) for v, w, attr in G.edges_iter(data=True) if 'cd' in attr)),
         ('Customers', (c for c in instance._customers.iterkeys())),
         ('Customer_Routes', ((c, r) for (c, r) in instance._customers.iteritems())),
-        ('Routes', ((r, [xpress.xpress_index(t)]) for (r, t) in instance._routes.iteritems()))
+        ('Routes', ((r, [xpress.xpress_index(t)]) for (r, t) in instance._routes.iteritems())),
+        ('Vehicle_Cost', instance._costpercar)
     ])
 
     with open(filename, 'w') as f:

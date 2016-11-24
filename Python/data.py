@@ -11,7 +11,7 @@ if __name__ == '__main__':
     parser.add_argument('-i', type=str, dest='instance')
     parser.add_argument('-l', type=str, dest='splitlength')
     parser.add_argument('-o', type=str, dest='fileoutput')
-    parser.add_argument('-r', type=int, dest='restriction')
+    parser.add_argument('-r', type=float, dest='restriction')
     parser.add_argument('--statistics', action='store_true')
     args = parser.parse_args()
    
@@ -19,6 +19,7 @@ if __name__ == '__main__':
     
     if args.instance:
         instance = storage.load_instance_from_json(args.instance)
+        #instance = storage.load_instance_from_json_deprecated(args.instance)
         print 'Instance successfully loaded'
     elif args.fileoutput:
         filename = '%s.json' % args.fileoutput
@@ -26,10 +27,11 @@ if __name__ == '__main__':
         print 'Instance successfully loaded'
     
     if args.restriction:
+        assert 0 <= args.restriction <= 1
         subsets = {}
-        subsets['refuelpoints'] = random.sample(instance._refuelpoints, args.restriction)
-        subsets['vehicles'] = random.sample(instance._vehicles, args.restriction)
-        subsets['customers'] = random.sample(instance._customers, args.restriction)
+        subsets['vehicles'] = random.sample(instance._vehicles, int(round(args.restriction * len(instance._vehicles))))
+        subsets['customers'] = random.sample(instance._customers, int(round(args.restriction * len(instance._customers))))
+        subsets['refuelpoints'] = random.sample(instance._refuelpoints, int(round(args.restriction * len(instance._refuelpoints))))
         if subsets:
             instance = instance.subinstance(**subsets)
     

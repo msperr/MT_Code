@@ -31,8 +31,6 @@ model "model"
 	
 	finalize(VEHICLES);
 	finalize(CUSTOMERS);
-	finalize(DS);
-	finalize(DE);
 	
 	writeln("Customers: ", getsize(CUSTOMERS));
 	writeln("Vehicles: ", getsize(VEHICLES));
@@ -79,23 +77,14 @@ model "model"
 	!!!
 	
 	declarations
-		TRIP_REFUELPOINT: array(NODES, TRIPS) of string;
-		REFUELPOINTS: array of string;
-		!EXTENDEDNODES: set of string;
+		REFUELPOINT: array(NODES, TRIPS) of string;
 	end-declarations
 	
 	initializations from INSTANCEFILE
-		TRIP_REFUELPOINT as 'Trip_Refuelpoints';
-		REFUELPOINTS as 'Refuelpoints';
+		REFUELPOINT as 'Refuelpoints';
 	end-initializations
 	
-	forall(s in NODES, t in NODES | exists(TRIP_REFUELPOINT(s, t))) finalize(TRIP_REFUELPOINT(s, t));
-	finalize(REFUELPOINTS);
-	
-	EXTENDEDNODES := NODES + REFUELPOINTS;
-	finalize(EXTENDEDNODES);
-	
-	writeln("Refuel point copies: ", sum(s in NODES, t in NODES | exists(TRIP_REFUELPOINT(s, t))) getsize(TRIP_REFUELPOINT(s, t)));
+	writeln("Refuel point copies: ", sum(s in NODES, t in NODES | exists(REFUELPOINT(s, t))) getsize(REFUELPOINT(s, t)));
 	
 	!!!
 	
@@ -111,7 +100,10 @@ model "model"
 		FD: array(NODES, TRIPS) of real;
 		FR: array(NODES, TRIPS) of real;
 		
-		!COST: dynamic array(EXTENDEDNODES, EXTENDEDNODES) of real;
+		CV: real;
+		CT: array(TRIPS) of real;
+		CE: array(NODES, TRIPS) of real;
+		CD: array(NODES, TRIPS) of real;
 	end-declarations
 	
 	initializations from INSTANCEFILE
@@ -126,7 +118,10 @@ model "model"
 		FD;
 		FR;
 		
-		!COST as 'cost';
+		CV as 'Vehicle_Cost';
+		CT;
+		CE;
+		CD;
 	end-initializations
 	
 	forall(v in VERTICES) finalize(NIN(v));
@@ -136,17 +131,17 @@ model "model"
 	
 	!!!
 	
-	forward procedure read_solution(filename: string, sol_x: array(VERTICES, VERTICES) of real, sol_z: array(NODES, NODES, REFUELPOINTS) of real, sol_e: array(NODES) of real)
-	forward procedure write_solution(filename: string, sol_x: array(VERTICES, VERTICES) of real, sol_z: array(NODES, NODES, REFUELPOINTS) of real, sol_e: array(NODES) of real)
-	forward procedure load_solution(sol_x: array(VERTICES, VERTICES) of real, sol_z: array(NODES, NODES, REFUELPOINTS) of real, sol_e: array(NODES) of real)
-	forward procedure store_solution(sol_x: array(VERTICES, VERTICES) of real, sol_z: array(NODES, NODES, REFUELPOINTS) of real, sol_e: array(NODES) of real)
+	!forward procedure read_solution(filename: string, sol_x: array(VERTICES, VERTICES) of real, sol_z: array(NODES, NODES, REFUELPOINTS) of real, sol_e: array(NODES) of real)
+	forward procedure write_solution(filename: string, sol_x: array(VERTICES, VERTICES) of real, sol_z: array(NODES, TRIPS) of real)
+	!forward procedure load_solution(sol_x: array(VERTICES, VERTICES) of real, sol_z: array(NODES, NODES, REFUELPOINTS) of real, sol_e: array(NODES) of real)
+	forward procedure store_solution(sol_x: array(VERTICES, VERTICES) of real, sol_z: array(NODES, TRIPS) of real, sol_e: array(NODES) of real, sol_u: array(ROUTES) of real)
 	
 	!!!
 	
 	declarations
 		
 		x: dynamic array(VERTICES, VERTICES) of mpvar;
-		z: dynamic array(NODES, NODES, REFUELPOINTS) of mpvar;
+		z: dynamic array(NODES, TRIPS) of mpvar;
 		e: array(NODES) of mpvar;
 		u: array(ROUTES) of mpvar;
 		
@@ -156,7 +151,7 @@ model "model"
 	end-declarations
 		
 	forall(s in VERTICES, t in NOUT(s)) create(x(s, t));
-	forall(s in NODES, t in NOUT(s) | t <> DEPOTEND, exists TRIP_REFUELPOINT(s, t)) create(z(s, t, TRIP_REFUELPOINT(s, t)));
+	forall(s in NODES, t in NOUT(s) | (t <> DE) and (REFUELPOINT(s, t) <> "")) create(z(s, t));
 	
 	forall(v in VERTICES) inflow(v)  := sum(w in NIN(v)) x(w, v);
 	forall(v in VERTICES) outflow(v) := sum(w in NOUT(v)) x(v, w);
@@ -165,16 +160,22 @@ model "model"
 		
 		CarNumber: linctr;
 		Distance: linctr;
-		Cost: linctr;
+		TripCost: linctr;
+		DeadheadCost: linctr;
+		TotalCost: linctr;
 		FuelSum: linctr;
+		TripNumber: linctr;
+		Refueling: linctr;
 		
 		BinaryX: dynamic array(VERTICES, VERTICES) of linctr;
-		BinaryZ: dynamic array(NODES, NODES, REFUELPOINTS) of linctr;
+		BinaryZ: dynamic array(NODES, TRIPS) of linctr;
 		IntervalE: array(NODES) of linctr;
+		BinaryU: dynamic array(ROUTES) of linctr;
 		DominanceXZ: dynamic array(NODES, NODES) of linctr;
 		VehicleInflow: array(VEHICLES) of linctr;
 		FlowConservation: array(NODES) of linctr;
-		Cover: array(CUSTOMERS) of linctr;
+		Customer: array(CUSTOMERS) of linctr;
+		Route: array(TRIPS) of linctr;
 		InitialFuel: array(VEHICLES) of linctr;
 		BeforeRefuel: array(VERTICES,VERTICES) of linctr;
 		AfterRefuel: array(VERTICES,VERTICES) of linctr;
@@ -184,146 +185,100 @@ model "model"
 	
 	declarations
 		sol_x: array(VERTICES, VERTICES) of real;
-		sol_z: array(NODES, NODES, REFUELPOINTS) of real;
+		sol_z: array(NODES, TRIPS) of real;
 		sol_e: array(NODES) of real;
+		sol_u: array(ROUTES) of real;
 	end-declarations
 	
-	read_solution(INITSOLFILE, sol_x, sol_z, sol_e);
+	!read_solution(INITSOLFILE, sol_x, sol_z, sol_e);
 	
 	with mpproblem do
 		
-		CarNumber := outflow(DEPOTSTART) - sum(s in VEHICLES) x(s, DEPOTEND);
-		Distance := sum(s in NODES, t in NOUT(s) | t <> DEPOTEND) (x(s, t) * FA(s, t) + sum(r in PARETOREFUELPOINTS(s, t)) (z(s, t, r) * (FA(s, r) + FA(r, t) - FA(s, t))));
-		Cost := sum(s in NODES, t in NOUT(s) | t <> DEPOTEND) (x(s, t) * COST(s, t) + sum(r in PARETOREFUELPOINTS(s, t)) (z(s, t, r) * (COST(s, r) + COST(r, t) - COST(s, t))));
+		CarNumber := outflow(DS) - sum(s in VEHICLES) x(s, DE);
+		TripCost := sum(t in TRIPS, s in NIN(t)) x(s, t) * CT(t);
+		DeadheadCost := sum(t in TRIPS, s in NIN(t)) (x(s, t) * CE(s, t) + z(s, t) * FD(s, t));
+		TotalCost := CarNumber * CV + TripCost + DeadheadCost;
+		TripNumber := sum(t in TRIPS, s in NIN(t)) x(s, t);
+		Refueling := sum(s in NODES, t in NOUT(s) | t <> DE and REFUELPOINT(s, t) <> "") z(s, t);
 			
-		forall(s in VERTICES, t in NOUT(s))					BinaryX(s, t) := x(s, t) is_binary;
-		forall(s in NODES, t in NOUT(s) | t <> DEPOTEND) forall(r in PARETOREFUELPOINTS(s, t))	BinaryZ(s, t, r) := z(s, t, r) is_binary;
-		forall(t in NODES)									IntervalE(t) := e(t) <= 1;
-		!forall(t in NODES)									discrete_e(t) is_integer;
+		forall(s in VERTICES, t in NOUT(s))			BinaryX(s, t) := x(s, t) is_binary;
+		forall(s in NODES, t in NOUT(s) | t <> DE)	BinaryZ(s, t) := z(s, t) is_binary;
+		forall(t in NODES)							IntervalE(t) := e(t) <= 1;
 		
-		forall(s in NODES, t in NOUT(s) | t <> DEPOTEND)	DominanceXZ(s, t)   := sum(r in PARETOREFUELPOINTS(s, t)) z(s, t, r) <= x(s, t);
-		forall(s in VEHICLES)                               VehicleInflow(s)    := inflow(s) = 1;
-		forall(t in NODES)									FlowConservation(t) := outflow(t) = inflow(t);
-		forall(c in CUSTOMERS)								Cover(c)            := sum(t in ALTERNATIVES(c)) inflow(t) = 1;
-		forall(s in VEHICLES)								InitialFuel(s)      := e(s) <= F0(s);
-		forall(s in NODES, t in NOUT(s) | t <> DEPOTEND)	BeforeRefuel(s, t)  := (sum(r in PARETOREFUELPOINTS(s, t)) z(s, t, r) * FA(s, r)) <= e(s);
-		forall(s in NODES, t in NOUT(s) | t <> DEPOTEND)	AfterRefuel(s, t)   := e(t) <= 1 - (sum(r in PARETOREFUELPOINTS(s, t)) z(s, t, r) * FA(r, t)) - FT(t);
-		forall(s in NODES, t in NOUT(s) | t <> DEPOTEND)	FuelLinkage(s, t)   := e(t) <= e(s) - x(s, t) * (FA(s, t) + FT(t)) + (sum(r in PARETOREFUELPOINTS(s, t)) z(s, t, r) * (FA(r, t) + FR(s, t, r) + FA(s, r) - FA(s, t))) + 1 - x(s, t);
+		forall(s in NODES, t in NOUT(s) | t <> DE)	DominanceXZ(s, t)   := z(s,t) <= x(s, t);
+		forall(s in VEHICLES)						VehicleInflow(s)    := inflow(s) = 1;
+		forall(t in NODES)							FlowConservation(t) := outflow(t) = inflow(t);
+		forall(c in CUSTOMERS)						Customer(c)			:= sum(m in CUSTOMER_ROUTES(c)) u(m) = 1;
+		forall(m in ROUTES) forall(t in ROUTE_TRIPS(m))	Route(t)		:= sum(s in NIN(t)) x(s, t) = u(m);
+		forall(s in VEHICLES)						InitialFuel(s)      := e(s) <= F0(s);
+		forall(s in NODES, t in NOUT(s) | t <> DE)	BeforeRefuel(s, t)  := z(s, t) * FG(s, t) <= e(s);
+		forall(s in NODES, t in NOUT(s) | t <> DE)	AfterRefuel(s, t)   := e(t) <= 1 - z(s, t) * FH(s, t) - FT(t);
+		forall(s in NODES, t in NOUT(s) | t <> DE)	FuelLinkage(s, t)   := e(t) <= e(s) - x(s, t) * (FE(s, t) + FT(t)) + z(s, t) * (FG(s, t) + FR(s, t) + FH(s, t) - FE(s, t)) + 1 - x(s, t);
 		
-		loadprob(Cost);
+		loadprob(TotalCost);
 		writeln("Model loaded.");
 		
 		!!!
 		
-		load_solution(sol_x, sol_z, sol_e);
+		!load_solution(sol_x, sol_z, sol_e);
 		
-		minimize(Cost);
+		minimize(TotalCost);
 		
-		writeln("Cost: ", getsol(Cost));
+		writeln("Total Cost: ", getsol(TotalCost));
 		writeln("Number of cars: ", getsol(CarNumber));
-		!forall(v in VERTICES, w in NOUT(v) | getsol(x(v, w)) > 0.5) writeln(v, ' -> ', w);
+		writeln("Trip Cost: ", getsol(TripCost));
+		writeln("Deadhead Cost: ", getsol(DeadheadCost));
+		writeln("Trips: ", getsol(TripNumber));
+		writeln("Number of refuelings: ", getsol(Refueling));
 		
-		store_solution(sol_x, sol_z, sol_e);
+		store_solution(sol_x, sol_z, sol_e, sol_u);
 		
 	end-do
 	
-	write_solution(OUTFILE, sol_x, sol_z, sol_e);
+	write_solution(OUTFILE, sol_x, sol_z);
 	
 	!!!
 	
-	procedure read_solution(filename: string, sol_x: array(VERTICES, VERTICES) of real, sol_z: array(NODES, NODES, REFUELPOINTS) of real, sol_e: array(NODES) of real)
+	procedure write_solution(filename: string, sol_x: array(VERTICES, VERTICES) of real, sol_z: array(NODES, TRIPS) of real)
 		
 		declarations
-			duties: array(VEHICLES) of list of list of string;
-			w: string;
-			u: string;
-			q: string;
-		end-declarations
-		
-		initializations from filename
-			duties;
-		end-initializations
-		
-		forall(s in VERTICES, t in VERTICES              | exists(sol_x(s, t)))    sol_x(s, t) := 0;
-		forall(s in NODES, t in NODES, r in REFUELPOINTS | exists(sol_z(s, t, r))) sol_z(s, t, r) := 0;
-		forall(s in NODES                                | exists(sol_e(s)))       sol_e(s) := 0;
-		
-		forall(v in VEHICLES) do
-			w := v;
-			sol_x(DEPOTSTART, w) := 1;
-			forall(leg in duties(v)) do
-				u := getfirst(leg);
-				q := getlast(leg);
-				sol_x(w, u) := 1;
-				if q in PARETOREFUELPOINTS(w, u) then
-					sol_z(w, u, q) := 1;
-				elif q <> '' then
-					writeln('Refuelpoint ', q, ' not in pareto frontier on (', w, ', ', u, ')');
-				end-if
-				w := u;
-			end-do
-			sol_x(w, DEPOTEND) := 1;
-		end-do
-		
-	end-procedure
-	
-	procedure write_solution(filename: string, sol_x: array(VERTICES, VERTICES) of real, sol_z: array(NODES, NODES, REFUELPOINTS) of real, sol_e: array(NODES) of real)
-		
-		declarations
-			duties: array(VEHICLES) of list of list of string;
+			DUTIES: array(VEHICLES) of list of list of string;
 			t: string;
 			u: string;
 			r: string;
 		end-declarations
 		
 		forall(s in VEHICLES) do
-			duties(s) := [];
+			DUTIES(s) := [];
 			t := s;
 			while(true) do
-				u := DEPOTEND;
-				forall(v in NOUT(t) | sol_x(t, v) > 0.5) u := v;
-				if u = DEPOTEND then
+				u := DE;
+				forall(v in NOUT(t) | sol_x(t, v) = 1) u := v;
+				if u = DE then
 					break;
 				end-if
 				r := '';
-				forall(w in PARETOREFUELPOINTS(t, u) | sol_z(t, u, w) > 0.5) r := w;
-				duties(s) += [[u, r]];
+				if sol_z(t, u) = 1 then
+					r := REFUELPOINT(t, u);
+				end-if
+				DUTIES(s) += [[u, r]];
 				t := u;
 			end-do
 		end-do
 		
 		initializations to filename
-			duties;
+			DUTIES as 'Duties';
 		end-initializations
 		
 	end-procedure
 	
-	procedure load_solution(sol_x: array(VERTICES, VERTICES) of real, sol_z: array(NODES, NODES, REFUELPOINTS) of real, sol_e: array(NODES) of real)
+	procedure store_solution(sol_x: array(VERTICES, VERTICES) of real, sol_z: array(NODES, TRIPS) of real, sol_e: array(NODES) of real, sol_u: array(ROUTES) of real)
 		
-		declarations
-			sol:  dynamic array(set of mpvar) of real;
-			status: integer;
-		end-declarations
-		
-		forall(s in VERTICES, t in NOUT(s))				                                       sol(x(s, t))    := sol_x(s, t);
-		forall(s in NODES, t in NOUT(s) | t <> DEPOTEND) forall(r in PARETOREFUELPOINTS(s, t)) sol(z(s, t, r)) := sol_z(s, t, r);
-		forall(t in NODES)	                                                                   sol(e(t))       := sol_e(t);
-		status := loadmipsol(sol);
-		if status = 0 then
-			writeln("Solution loaded.");
-		else
-			writeln("Could not load solution (Status: ", status, ").");
-		end-if
+		forall(s in VERTICES, t in NOUT(s))											sol_x(s, t)	:= getsol(x(s, t));
+		forall(s in NODES, t in NOUT(s) | (t <> DE) and (REFUELPOINT(s, t) <> ""))	sol_z(s, t)	:= getsol(z(s, t));
+		forall(t in NODES)															sol_e(t)	:= getsol(e(t));
+		forall(m in ROUTES)															sol_u(m)	:= getsol(u(m));
 		
 	end-procedure
-	
-	procedure store_solution(sol_x: array(VERTICES, VERTICES) of real, sol_z: array(NODES, NODES, REFUELPOINTS) of real, sol_e: array(NODES) of real)
-		
-		forall(s in VERTICES, t in NOUT(s))				                                       sol_x(s, t)    := getsol(x(s, t));
-		forall(s in NODES, t in NOUT(s) | t <> DEPOTEND) forall(r in PARETOREFUELPOINTS(s, t)) sol_z(s, t, r) := getsol(z(s, t, r));
-		forall(t in NODES)								                                       sol_e(t)       := getsol(e(t));
-		
-	end-procedure
-	
 	
 end-model

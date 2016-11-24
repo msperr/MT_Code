@@ -4,7 +4,7 @@ from datetime import timedelta
 
 import numpy
 
-class instance:
+class Instance:
     _basename = ''
 
     _fuelpermeter = 0
@@ -110,13 +110,12 @@ class instance:
         return self._initialfuel[self._index[s]]
     
     def subinstance(self, vehicles=None, customers=None, refuelpoints=None):
-        #customers = OrderedDict((customer, self._customers.get(customer)) for customer in )
         vehicles = list(self._vehicles if vehicles is None else vehicles)
         customers = OrderedDict((customer, self._customers.get(customer)) for customer in (self._customers.iterkeys() if customers is None else customers))
         routes = OrderedDict((route, self._routes.get(route)) for routes in customers.itervalues() for route in routes)
         refuelpoints = list(self._refuelpoints if refuelpoints is None else refuelpoints)
 
-        subinst = instance(vehicles, customers, routes, refuelpoints, self._fuelpermeter, self._refuelpersecond, self._costpermeter, self._costpercar)
+        subinst = Instance(vehicles, customers, routes, refuelpoints, self._fuelpermeter, self._refuelpersecond, self._costpermeter, self._costpercar)
         
         indices = numpy.fromiter((self._index[v] for v in subinst.vertices), dtype=numpy.int)
         extindices = numpy.fromiter((self._index[v] for v in subinst.extendedvertices), dtype=numpy.int)

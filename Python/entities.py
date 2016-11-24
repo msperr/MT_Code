@@ -2,7 +2,7 @@ import xpress
 from distance_matrix import DistanceMatrix
 
 import math
-from datetime import datetime, timedelta
+from datetime import datetime
 import logging
 logging.getLogger('fastkml.config').addHandler(logging.NullHandler())
 import fastkml
@@ -30,10 +30,10 @@ class Point:
         return self.__key__() == other.__key__()
 
     def __str__(self):
-        return '(%f, %f)' % (self.lon, self.lat)
+        return '(%.6f, %.6f)' % (self.lon, self.lat)
 
     def __repr__(self):
-        return '(%f, %f)' % (self.lon, self.lat)
+        return '(%.6f, %.6f)' % (self.lon, self.lat)
 
     def __xpress_index(self):
         return 'Point_%d_%d' % (math.floor(100000 * self.lon), math.floor(100000 * self.lat))
@@ -49,15 +49,15 @@ class Trip:
     distance = 0.0
     servicedrive = False    
 
-    def __init__(self, location_id, vehicle_vin, start_time, finish_time, distance, servicedrive, start_loc=None, start_longitude=0.0, start_latitude=0.0, finish_loc=None, finish_longitude=0.0, finish_latitude=0.0):
+    def __init__(self, location_id, vehicle_vin, start_time, distance, servicedrive, start_loc=None, start_longitude=0.0, start_latitude=0.0, finish_loc=None, finish_longitude=0.0, finish_latitude=0.0, finish_time=None, duration=None):
         self.location_id = location_id
         self.vehicle_vin = vehicle_vin
         self.start_time = start_time
-        self.finish_time = finish_time
+        self.finish_time = start_time + duration if finish_time is None else finish_time
         self.start_loc = start_loc if start_loc else Point(start_longitude, start_latitude)
         self.finish_loc = finish_loc if finish_loc else Point(finish_longitude, finish_latitude)
         self.distance = distance
-        self.servicedrive = True if servicedrive else False    
+        self.servicedrive = servicedrive
 
     def __key__(self):
         return (self.vehicle_vin, self.start_time, self.start_loc)
@@ -116,12 +116,12 @@ class Trip:
             'vehicle_vin': self.vehicle_vin,
             'start_time': self.start_time.strftime('%Y-%m-%d %H:%M:%S'),
             'finish_time': self.finish_time.strftime('%Y-%m-%d %H:%M:%S'),
-            'distance': self.distance,
+            'distance': round(self.distance),
             'servicedrive': self.servicedrive,
-            'start_longitude': self.start_loc.lon,
-            'start_latitude': self.start_loc.lat,
-            'finish_longitude': self.finish_loc.lon,
-            'finish_latitude': self.finish_loc.lat
+            'start_longitude': round(self.start_loc.lon, 6),
+            'start_latitude': round(self.start_loc.lat, 6),
+            'finish_longitude': round(self.finish_loc.lon, 6),
+            'finish_latitude': round(self.finish_loc.lat, 6)
         }
     
 class Vehicle:
@@ -180,8 +180,8 @@ class Vehicle:
         return {
             'id': self.id,
             'start_time': self.start_time.strftime('%Y-%m-%d %H:%M:%S'),
-            'longitude': self.start_loc.lon,
-            'latitude': self.start_loc.lat,
+            'longitude': round(self.start_loc.lon, 6),
+            'latitude': round(self.start_loc.lat, 6),
             'fuel': self.fuel
         }
 
@@ -220,8 +220,8 @@ class RefuelPoint(Point):
     def __json__(self):
         return {
             'id': self.id,
-            'longitude': self.location.lon,
-            'latitude': self.location.lat
+            'longitude': round(self.location.lon, 6),
+            'latitude': round(self.location.lat, 6)
         }
 
 class Splitpoint:
