@@ -39,7 +39,6 @@ class osrm(object):
 
         query = util.url('http', self.host, self.port, 'matrix', {})
         query = query + '?' + '&'.join([('src=%f,%f' % (src.lat, src.lon)) for src in sources if src] + [('trgt=%f,%f' % (trgt.lat, trgt.lon)) for trgt in targets if trgt])
-        print 'Query', query
         response = requests.get(query).json()
 
         time = numpy.asarray(response['duration_table'], dtype=numpy.int32) / 10
@@ -83,16 +82,15 @@ class osrm_parallel(object):
         return self.pool.imap(router_route, routes)
 
     def matrix(self, these, those):
-
-        these = [t.finish_loc if isinstance(t, (entities.Vehicle, entities.Trip)) else t for t in these]
-        those = [t.start_loc if isinstance(t, (entities.Vehicle, entities.Trip)) else t for t in those]
+        
+        these = [t.finish_loc if isinstance(t, entities.Trip) else (t.start_loc if isinstance(t, entities.Vehicle) else t.location) for t in these]
+        those = [t.start_loc if isinstance(t, (entities.Trip, entities.Vehicle)) else t.location for t in those]
 
         time = numpy.empty((len(these), len(those)), dtype=numpy.int32)
         dist = numpy.empty((len(these), len(those)), dtype=numpy.int32)
 
-
         n = self.max_table_size
-        progress = progressbar.ProgressBar(maxval=((len(these) + n - 1) / n) * ((len(those) + n - 1) / n), widgets=[progressbar.Bar('#', '[', ']'), ' ', progressbar.Percentage(), ' ', progressbar.Timer(), ' ', progressbar.ETA()], term_width=config['console']['width']).start()
+        progress = progressbar.ProgressBar(maxval=((len(these)+n-1)/n) * ((len(those)+n-1)/n), widgets=[progressbar.Bar('#', '[', ']'), ' ', progressbar.Percentage(), ' ', progressbar.Timer(), ' ', progressbar.ETA()], term_width=config['console']['width']).start()
         progresscount = count(1)
 
         for (timeblock, distblock), (i, j) in izip(self.pool.imap(router_matrix, product(util.grouper(these, n), util.grouper(those, n))), product(range(0, len(these), n), range(0, len(those), n))):

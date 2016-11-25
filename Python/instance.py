@@ -4,7 +4,13 @@ from datetime import timedelta
 
 import numpy
 
+<<<<<<< HEAD
+import entities
+
 class Instance:
+=======
+class instance:
+>>>>>>> parent of be54c5f... Commit
     _basename = ''
 
     _fuelpermeter = 0
@@ -80,6 +86,13 @@ class Instance:
     def finishtime(self):
         return max(map((lambda t: t.finish_time), self._trips))
     
+    @property
+    def dictionary(self):
+        dictionary = entities.get_dict(self.refuelpoints)
+        dictionary.update(entities.get_dict(self.vehicles))
+        dictionary.update(entities.get_dict(self.trips))
+        return dictionary
+    
     def customer(self, t):
         return self._customertable[self._index[t]];
     
@@ -93,7 +106,7 @@ class Instance:
         return self._time[self._index[s], self._index[t]]
 
     def timedelta(self, s=None, t=None):
-        return timedelta(seconds=self._time[self._index[s], self._index[t]])
+        return timedelta(seconds = int(self._time[self._index[s], self._index[t]]))
 
     def dist(self, s, t):
         if isinstance(s, list) and isinstance(t, list):
@@ -110,12 +123,13 @@ class Instance:
         return self._initialfuel[self._index[s]]
     
     def subinstance(self, vehicles=None, customers=None, refuelpoints=None):
+        #customers = OrderedDict((customer, self._customers.get(customer)) for customer in )
         vehicles = list(self._vehicles if vehicles is None else vehicles)
         customers = OrderedDict((customer, self._customers.get(customer)) for customer in (self._customers.iterkeys() if customers is None else customers))
         routes = OrderedDict((route, self._routes.get(route)) for routes in customers.itervalues() for route in routes)
         refuelpoints = list(self._refuelpoints if refuelpoints is None else refuelpoints)
 
-        subinst = Instance(vehicles, customers, routes, refuelpoints, self._fuelpermeter, self._refuelpersecond, self._costpermeter, self._costpercar)
+        subinst = instance(vehicles, customers, routes, refuelpoints, self._fuelpermeter, self._refuelpersecond, self._costpermeter, self._costpercar)
         
         indices = numpy.fromiter((self._index[v] for v in subinst.vertices), dtype=numpy.int)
         extindices = numpy.fromiter((self._index[v] for v in subinst.extendedvertices), dtype=numpy.int)

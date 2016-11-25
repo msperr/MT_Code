@@ -1,10 +1,10 @@
 {
 	"console": {
-		"width": 100
+		"width": 132
 	},
 	"osrm": {
-		"executable": "../routing/osrm/osrm-routed.exe",
-		"osm": "../routing/osm/stgt/stuttgart-regbez-latest.osrm",
+		"executable": "../osrm/osrm-routed.exe",
+		"osm": "../osrm/osm/stuttgart-regbez-latest.osrm",
 		"hosts": [
 			{
 				"host": "localhost",
@@ -26,9 +26,9 @@
 		"max_table_size": 100
 	},
 	"otp": {
-		"jar": "../routing/otp/otp-1.0.0-shaded.jar",
+		"jar": "../../otp/otp-0.19.0-shaded.jar",
 		"maxheapsize": 2,
-		"graphs": "../routing/osm",
+		"graphs": "../../data/osm",
 		"host": "localhost",
 		"port": 8080,
 		"router": "stgt"

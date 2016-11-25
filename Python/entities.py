@@ -2,11 +2,17 @@ import xpress
 from distance_matrix import DistanceMatrix
 
 import math
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 logging.getLogger('fastkml.config').addHandler(logging.NullHandler())
 import fastkml
 import pygeoif
+
+def get_dict(points):
+    dictionary = dict()
+    for point in points:
+        dictionary[xpress.xpress_index(point)] = point
+    return dictionary
 
 class Point:
 
@@ -30,10 +36,10 @@ class Point:
         return self.__key__() == other.__key__()
 
     def __str__(self):
-        return '(%.6f, %.6f)' % (self.lon, self.lat)
+        return '(%f, %f)' % (self.lon, self.lat)
 
     def __repr__(self):
-        return '(%.6f, %.6f)' % (self.lon, self.lat)
+        return '(%f, %f)' % (self.lon, self.lat)
 
     def __xpress_index(self):
         return 'Point_%d_%d' % (math.floor(100000 * self.lon), math.floor(100000 * self.lat))
@@ -49,15 +55,15 @@ class Trip:
     distance = 0.0
     servicedrive = False    
 
-    def __init__(self, location_id, vehicle_vin, start_time, distance, servicedrive, start_loc=None, start_longitude=0.0, start_latitude=0.0, finish_loc=None, finish_longitude=0.0, finish_latitude=0.0, finish_time=None, duration=None):
+    def __init__(self, location_id, vehicle_vin, start_time, finish_time, distance, servicedrive, start_loc=None, start_longitude=0.0, start_latitude=0.0, finish_loc=None, finish_longitude=0.0, finish_latitude=0.0):
         self.location_id = location_id
         self.vehicle_vin = vehicle_vin
         self.start_time = start_time
-        self.finish_time = start_time + duration if finish_time is None else finish_time
+        self.finish_time = finish_time
         self.start_loc = start_loc if start_loc else Point(start_longitude, start_latitude)
         self.finish_loc = finish_loc if finish_loc else Point(finish_longitude, finish_latitude)
         self.distance = distance
-        self.servicedrive = servicedrive
+        self.servicedrive = True if servicedrive else False    
 
     def __key__(self):
         return (self.vehicle_vin, self.start_time, self.start_loc)
@@ -116,12 +122,12 @@ class Trip:
             'vehicle_vin': self.vehicle_vin,
             'start_time': self.start_time.strftime('%Y-%m-%d %H:%M:%S'),
             'finish_time': self.finish_time.strftime('%Y-%m-%d %H:%M:%S'),
-            'distance': round(self.distance),
+            'distance': self.distance,
             'servicedrive': self.servicedrive,
-            'start_longitude': round(self.start_loc.lon, 6),
-            'start_latitude': round(self.start_loc.lat, 6),
-            'finish_longitude': round(self.finish_loc.lon, 6),
-            'finish_latitude': round(self.finish_loc.lat, 6)
+            'start_longitude': self.start_loc.lon,
+            'start_latitude': self.start_loc.lat,
+            'finish_longitude': self.finish_loc.lon,
+            'finish_latitude': self.finish_loc.lat
         }
     
 class Vehicle:
@@ -180,8 +186,8 @@ class Vehicle:
         return {
             'id': self.id,
             'start_time': self.start_time.strftime('%Y-%m-%d %H:%M:%S'),
-            'longitude': round(self.start_loc.lon, 6),
-            'latitude': round(self.start_loc.lat, 6),
+            'longitude': self.start_loc.lon,
+            'latitude': self.start_loc.lat,
             'fuel': self.fuel
         }
 
@@ -220,8 +226,8 @@ class RefuelPoint(Point):
     def __json__(self):
         return {
             'id': self.id,
-            'longitude': round(self.location.lon, 6),
-            'latitude': round(self.location.lat, 6)
+            'longitude': self.location.lon,
+            'latitude': self.location.lat
         }
 
 class Splitpoint:
@@ -258,117 +264,3 @@ class Splitpoint:
     @property
     def start_time(self):
         return self.time
-    
-#-----------------------------------------------
-
-
-def get_dict(points):
-    dictionary = dict()
-    for point in points:
-        dictionary[xpress.xpress_index(point)] = point
-    return dictionary
-
-
-def compare(element1,element2):
-    if isinstance(element1,Trip):
-        if element1.finish_loc == element2.start_loc and element1.finish_time == element2.start_time:
-            return True
-    elif isinstance(element1,Spot) or isinstance(element1,Vehicle):
-        if element1.start_loc == element2.start_loc and element1.start_time == element2.start_time:
-            return True
-    else:
-        return False
-
-
-
-
-
-
-
-class Spot:
-
-    id = None
-    start_loc = Point(0.0, 0.0)
-    start_time = datetime.now()
-    fuel = 1.0
-
-    def __init__(self, id, start_time, fuel = 1.0, start_loc = None, longitude = 0.0, latitude = 0.0):
-        if start_loc:
-            if start_loc.lon == 0 or start_loc.lat == 0:
-                raise ValueError('Spot with 0-start_coordinates')
-        elif longitude==0 or latitude==0:
-            raise ValueError('Spot with 0-start_coordinates')
-        self.id = id
-        self.start_time = start_time
-        self.start_loc = start_loc if start_loc else Point(longitude, latitude)
-        self.fuel = fuel
-
-    def __key__(self):
-        return (self.id, self.start_time, self.start_loc)
-
-    def __hash__(self):
-        return hash(self.__key__())
-
-    def __eq__(self, other):
-        return isinstance(other, Spot) and self.__key__() == other.__key__()
-
-    def __le__(self, other):
-        return isinstance(other, Trip) and self.start_time <= other.start_time and self.start_time + DistanceMatrix.timedelta(self, other) <= other.start_time
-
-    def __lt__(self, other):
-        return isinstance(other, Trip) and self.start_time < other.start_time and self.start_time + DistanceMatrix.timedelta(self, other) < other.start_time
-
-    def __repr__(self):
-        return 'Spot%s' % self.id
-
-    def __xpress_index__(self):
-        return 'Spot'+str(self.id)
-
-    @property
-    def finish_loc(self):
-        return self.start_loc
-
-    @property
-    def finish_time(self):
-        return self.start_time
-    
-
-
-def instance_check(trips,vehicles,vehicle_range=135000):
-    errornumber = 0
-    if not trips:
-        raise ValueError
-    if not vehicles:
-        raise ValueError
-    for trip in trips:
-        if trip.duration == 0:
-            print('Warning: The durration of trip %s is 0.' % trip)
-            errornumber +=1
-        if trip.start_loc.lon == 0:
-            print('Warning: The longitude of the start-location of trip %s is 0.' % trip)
-            errornumber +=1
-        if trip.start_loc.lat == 0:
-            print('Warning: The latitude of the start-location of trip %s is 0.' % trip)
-            errornumber +=1
-        if trip.finish_loc.lon == 0:
-            print('Warning: The longitude of the finish-location of trip %s is 0.' % trip)
-            errornumber +=1
-        if trip.finish_loc.lat == 0:
-            print('Warning: The latitude of the finish-location of trip %s is 0.' % trip)
-            errornumber +=1
-        number = 0
-        for s in trips:
-            if s <= trip:
-                if DistanceMatrix.dist(s,trip)<vehicle_range:
-                    number +=1
-                    break
-        if number == 0:
-            for s in vehicles:
-                if s <= trip:
-                    if DistanceMatrix.dist(s,trip)<vehicle_range:
-                        number +=1
-                        break
-        if number == 0:
-            print('Warning: Trip %s can not be reached without refueling.' % trip)
-            errornumber +=1
-    return errornumber
