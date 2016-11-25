@@ -44,13 +44,9 @@ def create_taskgraph_preprocessing(args):
                     else:
                         if edge[2]['fg'] + edge[2]['fh'] < edge[2]['fe']:
                             edge[2]['fe'] = edge[2]['fg'] + edge[2]['fh']
-<<<<<<< HEAD
                             edge[2]['fd'] = 0.0
                             edge[2]['ce'] = edge[2]['fe'] * (instance._costpermeter/instance._fuelpermeter)
                             edge[2]['cd'] = 0.0
-=======
-                            edge[2]['fd']=0.0
->>>>>>> parent of be54c5f... Commit
                 edges.append(edge)
                 
     return edges
@@ -73,12 +69,8 @@ def create_taskgraph(instance):
     }) for s in instance._vehicles)
 
     G.add_nodes_from((t, {
-<<<<<<< HEAD
         'ft': t.distance * instance._fuelpermeter,
         'ct': t.distance * instance._costpermeter
-=======
-        'ft': t.distance * 1000.0 * instance._fuelpermeter
->>>>>>> parent of be54c5f... Commit
     }) for t in instance._trips)
 
     G.add_nodes_from((s, {

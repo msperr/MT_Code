@@ -1,7 +1,6 @@
-from itertools import izip, izip_longest, product
+from itertools import izip, product
 from datetime import timedelta
 from multiprocessing import Pool, Queue
-import json
 from urlparse import urlunparse
 from urllib import urlencode
 import sys
@@ -11,14 +10,12 @@ import requests
 
 import entities
 import util
-
-with open('config.json', 'r') as f:
-    config = json.load(f)
+from config import config
 
 def distance_matrix_get_many_to_many_parallel_initializer(host_queue):
     global osrm_host
     osrm_host = host_queue.get()
-    print "Initialized: process id = %d, host = %s" % (os.getpid(), osrm_host)
+    print "Initialized: process id = %d, host = %s:%s" % (os.getpid(), osrm_host['host'], osrm_host['port'])
 
 def distance_matrix_get_many_to_many_parallel_func(args):
     global osrm_host
@@ -44,7 +41,7 @@ def create_worker_pool():
     osrm_hosts = Queue()
     for host in config['osrm']['hosts']:
         osrm_hosts.put(host)
-    return Pool(initializer=distance_matrix_get_many_to_many_parallel_initializer, initargs=(osrm_hosts,))
+    return Pool(initializer = distance_matrix_get_many_to_many_parallel_initializer, initargs = (osrm_hosts, ))
 
 class DistanceMatrix:
 
@@ -116,9 +113,9 @@ class DistanceMatrix:
     def get_many_to_many(these, those):
 
         DistanceMatrix.init()
-
-        these = [t.start_loc if isinstance(t, entities.Vehicle) or isinstance(t, entities.Spot) else (t.finish_loc if isinstance(t, entities.Trip) else t) for t in these]
-        those = [t.start_loc if isinstance(t, entities.Vehicle) or isinstance(t, entities.Spot) or isinstance(t, entities.Trip) else t for t in those]
+        
+        these = [t.start_loc if isinstance(t, entities.Vehicle) else (t.finish_loc if isinstance(t, entities.Trip) else t) for t in these]
+        those = [t.start_loc if isinstance(t, entities.Vehicle) or isinstance(t, entities.Trip) else t for t in those]
 
         DistanceMatrix.prepare(these, those)
 

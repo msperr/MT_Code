@@ -20,12 +20,11 @@ if __name__ == '__main__':
     parser.add_argument('-c', type=int, dest='customer_number')
     parser.add_argument('-v', type=int, dest='vehicle_number')
     parser.add_argument('--statistics', action='store_true')
-    parser.add_argument('--unit', action='store_true')
     args = parser.parse_args()
     
     print '[INFO] Process started'
     
-    frequency = [1]*24 if args.unit else [0.1, 0.1, 0.15, 0.2, 0.4, 0.65, 0.55, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 1, 1, 1, 0.8, 0.55, 0.45, 0.35, 0.2, 0.15, 0.1]
+    frequency = [0.1, 0.1, 0.15, 0.2, 0.4, 0.65, 0.55, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 1, 1, 1, 0.8, 0.55, 0.45, 0.35, 0.2, 0.15, 0.1]
     
     time_step = timedelta(seconds=3600)
     trip_start = datetime(2015, 10, 01, 19)
@@ -44,6 +43,9 @@ if __name__ == '__main__':
     
     customer_number = args.customer_number / sum(frequency) if args.customer_number else len(original_trips)
     vehicle_number = args.vehicle_number if args.vehicle_number else len(instance._vehicles)
+    
+    original_start = map(lambda k: k.start_loc, original_trips)
+    original_finish = map(lambda k: k.finish_loc, original_trips)
     
     prop_customers = []
     
@@ -70,9 +72,6 @@ if __name__ == '__main__':
             vehicles = instance._vehicles + new_vehicles
     else:
         vehicles = instance._vehicles
-    
-    for vehicle in vehicles:
-        vehicle.start_time = instance_start
 
     print 'Creating trips with OTP ...'
 

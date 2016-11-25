@@ -4,13 +4,9 @@ from datetime import timedelta
 
 import numpy
 
-<<<<<<< HEAD
 import entities
 
 class Instance:
-=======
-class instance:
->>>>>>> parent of be54c5f... Commit
     _basename = ''
 
     _fuelpermeter = 0
@@ -129,7 +125,7 @@ class instance:
         routes = OrderedDict((route, self._routes.get(route)) for routes in customers.itervalues() for route in routes)
         refuelpoints = list(self._refuelpoints if refuelpoints is None else refuelpoints)
 
-        subinst = instance(vehicles, customers, routes, refuelpoints, self._fuelpermeter, self._refuelpersecond, self._costpermeter, self._costpercar)
+        subinst = Instance(vehicles, customers, routes, refuelpoints, self._fuelpermeter, self._refuelpersecond, self._costpermeter, self._costpercar)
         
         indices = numpy.fromiter((self._index[v] for v in subinst.vertices), dtype=numpy.int)
         extindices = numpy.fromiter((self._index[v] for v in subinst.extendedvertices), dtype=numpy.int)
