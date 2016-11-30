@@ -11,6 +11,8 @@ import util
 import xpress
 from config import config
 
+count = True
+
 def create_taskgraph_preprocessing(args):
     instance, vertices = args
     edges = []
@@ -24,7 +26,7 @@ def create_taskgraph_preprocessing(args):
                     p = min(filtered, key = lambda k: instance.dist(s, k) + instance.dist(k, t))
                 except (ValueError):
                     p = None
-                
+
                 edge = (s, t, {
                     'refuelpoint': p,
                     'fe': instance.dist(s, t) * instance._fuelpermeter,
@@ -94,10 +96,6 @@ def create_taskgraph(instance):
         progress.update(progresscount.next())
     
     progress.finish()
-
-#     for s, t, attr in create_taskgraph_preprocessing(instance):
-#         attr['refuelpoint'] = original[attr['refuelpoint']] if attr['refuelpoint'] else None
-#         G.add_edge(original[s], original[t], attr)
 
     pool.terminate()
     pool.join()
@@ -169,7 +167,7 @@ def save_taskgraph_to_xpress(instance, G, filename):
         ('Vehicles', (xpress.xpress_index(s) for s in G.nodes_iter() if isinstance(s, entities.Vehicle))),
         ('Trips', (xpress.xpress_index(t) for t in G.nodes_iter() if isinstance(t, entities.Trip))),
         ('Splitpoints', (xpress.xpress_index(s) for s in G.nodes_iter() if isinstance(s, entities.Splitpoint))),
-        ('Refuelpoints', (xpress.xpress_index(r) for r in instance._refuelpoints))
+        ('Refuelpoints', (xpress.xpress_index(r) for r in instance._refuelpoints)),
         ('Trip_Refuelpoints', (((v, w), xpress.xpress_index(attr['refuelpoint']) if attr['refuelpoint'] else '') for v, w, attr in G.edges_iter(data=True) if 'refuelpoint' in attr)),
         ('Nin', ((v, (xpress.xpress_index(w) for w in G.predecessors_iter(v))) for v in G.nodes())),
         ('Nout', ((v, (xpress.xpress_index(w) for w in G.successors_iter(v))) for v in G.nodes())),
@@ -212,6 +210,7 @@ def save_split_taskgraph_to_xpress(instance, G, splitpoint_list, trip_list, cust
         ('FH', (((v, w), attr['fh']) for v, w, attr in G.edges_iter(data=True) if 'fh' in attr)),
         ('FD', (((v, w), attr['fd']) for v, w, attr in G.edges_iter(data=True) if 'fd' in attr)),
         ('FR', (((v, w), attr['fr']) for v, w, attr in G.edges_iter(data=True) if 'fr' in attr)),
+        ('CT', ((v, attr['ct']) for v, attr in G.nodes_iter(data=True) if 'ct' in attr)),
         ('CE', (((v, w), attr['ce']) for v, w, attr in G.edges_iter(data=True) if 'ce' in attr)),
         ('CD', (((v, w), attr['cd']) for v, w, attr in G.edges_iter(data=True) if 'cd' in attr)),
         ('Customers', (c for c in instance._customers.iterkeys())),

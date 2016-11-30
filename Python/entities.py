@@ -2,7 +2,7 @@ import xpress
 from distance_matrix import DistanceMatrix
 
 import math
-from datetime import datetime, timedelta
+from datetime import datetime
 import logging
 logging.getLogger('fastkml.config').addHandler(logging.NullHandler())
 import fastkml
@@ -72,7 +72,8 @@ class Trip:
         return hash(self.__key__())
 
     def __repr__(self):
-        return 'Trip%s_%d_%d' % (self.start_time.strftime('%H%M%S'), math.floor(100000*self.start_loc.lon), math.floor(100000*self.start_loc.lat))
+        #return 'Trip%s_%d_%d' % (self.start_time.strftime('%H%M%S'), math.floor(100000*self.start_loc.lon), math.floor(100000*self.start_loc.lat))
+        return 'Trip%s' % self.vehicle_vin
 
     def __eq__(self, other):
         return isinstance(other, Trip) and self.__key__() == other.__key__()
@@ -191,7 +192,8 @@ class Vehicle:
             'fuel': self.fuel
         }
 
-class RefuelPoint(Point):
+#class RefuelPoint(Point):
+class RefuelPoint:
     
     id = None
     location = Point(0.0, 0.0)
@@ -201,7 +203,8 @@ class RefuelPoint(Point):
         self.location = location if location else Point(longitude, latitude)
 
     def __key__(self):
-        return (self.id, self.lon, self.lat)
+        #return (self.id, self.lon, self.lat)
+        return (self.id, self.location)
 
     def __hash__(self):
         return hash(self.__key__())

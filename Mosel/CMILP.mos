@@ -1,0 +1,546 @@
+model "model"
+	
+	options noimplicit, explterm;
+	uses "mmxprs";
+	
+	parameters
+		INSTANCE     = "..\\..\\data\\instance_c50u_total\\instance";
+		INSTANCEFILE = INSTANCE + ".split.txt";
+		OUTFILE      = INSTANCE + ".customer.xpress.txt";
+	end-parameters
+	
+	setparam("XPRS_verbose", false);
+	setparam("XPRS_heurstrategy", 0);
+	setparam("XPRS_presolve", 0);
+	
+	!!!
+
+	declarations
+		INDICES: set of integer;
+		VEHICLES: set of string;
+		TOTAL_DS: string;
+		TOTAL_DE: string;
+	end-declarations
+	
+	initializations from INSTANCEFILE
+		INDICES as 'I';
+		VEHICLES as 'Vehicles';
+		TOTAL_DS as 'DS';
+		TOTAL_DE as 'DE';
+	end-initializations
+	
+	finalize(INDICES);
+	finalize(VEHICLES);
+	
+	writeln("Partial Instances: ", getsize(INDICES));
+	
+	declarations
+		TRIPS: array(INDICES) of set of string;
+		SPLITPOINTS: array(INDICES) of set of string;
+		CUSTOMERS: array(INDICES) of set of integer;
+		DS: array(INDICES) of string;
+		DE: array(INDICES) of string;
+	end-declarations
+	
+	initializations from INSTANCEFILE
+		TRIPS as 'Partial_Trips';
+		SPLITPOINTS as 'Partial_Splitpoints';
+		CUSTOMERS as 'Partial_Customers';
+	end-initializations
+	
+	forall (index in INDICES) DS(index) := TOTAL_DS + "_" + index;
+	forall (index in INDICES) DE(index) := TOTAL_DE + "_" + index;
+	
+	forall (index in INDICES) finalize(TRIPS(index));
+	forall (index in INDICES) finalize(SPLITPOINTS(index));
+	forall (index in INDICES) finalize(CUSTOMERS(index));
+	
+	declarations
+		TOTAL_TRIPS: set of string;
+		TOTAL_SPLITPOINTS: set of string;
+		TOTAL_CUSTOMERS: set of integer;
+		TOTAL_NODES: set of string;
+		TOTAL_NODES_VT: set of string;
+		TOTAL_NODES_VP: set of string;
+		TOTAL_NODES_TP: set of string;
+		TOTAL_VERTICES: set of string;
+	end-declarations
+	
+	TOTAL_TRIPS := union(index in INDICES) TRIPS(index);
+	finalize(TOTAL_TRIPS);
+	TOTAL_SPLITPOINTS := union(index in INDICES) SPLITPOINTS(index);
+	finalize(TOTAL_SPLITPOINTS);
+	TOTAL_CUSTOMERS := union(index in INDICES) CUSTOMERS(index);
+	finalize(TOTAL_CUSTOMERS);
+	TOTAL_NODES := VEHICLES + TOTAL_TRIPS + TOTAL_SPLITPOINTS;
+	finalize(TOTAL_NODES);
+	TOTAL_NODES_VT := VEHICLES + TOTAL_TRIPS;
+	finalize(TOTAL_NODES_VT);
+	TOTAL_NODES_VP := VEHICLES + TOTAL_SPLITPOINTS;
+	finalize(TOTAL_NODES_VP);
+	TOTAL_NODES_TP := TOTAL_TRIPS + TOTAL_SPLITPOINTS;
+	finalize(TOTAL_NODES_TP);
+	TOTAL_VERTICES := union(index in INDICES){DS(index), DE(index)} + TOTAL_NODES;
+	
+	declarations
+		REFUELPOINT: array(TOTAL_NODES, TOTAL_NODES_TP) of string;
+		CUSTOMER_ROUTES: array(TOTAL_CUSTOMERS) of set of integer;
+		TOTAL_ROUTES: set of integer;
+	end-declarations
+	
+	initializations from INSTANCEFILE
+		REFUELPOINT as 'Refuelpoints';
+		CUSTOMER_ROUTES as 'Customer_Routes';
+	end-initializations
+	
+	forall(customer in TOTAL_CUSTOMERS) finalize(CUSTOMER_ROUTES(customer));
+	
+	TOTAL_ROUTES := union(customer in TOTAL_CUSTOMERS) CUSTOMER_ROUTES(customer);
+	finalize(TOTAL_ROUTES);
+	
+	declarations
+		ROUTE_TRIPS: array(TOTAL_ROUTES) of set of string;
+		ROUTES: array(INDICES) of set of integer;
+	end-declarations
+	
+	initializations from INSTANCEFILE
+		ROUTE_TRIPS as 'Routes';
+	end-initializations
+	
+	forall(route in TOTAL_ROUTES) finalize(ROUTE_TRIPS(route));
+	forall(index in INDICES) ROUTES(index) := union(customer in CUSTOMERS(index)) CUSTOMER_ROUTES(customer);
+	forall(index in INDICES) finalize(ROUTES(index));
+	
+	writeln("Customers: ", getsize(TOTAL_CUSTOMERS));
+	writeln("Vehicles: ", getsize(VEHICLES));
+	writeln("Routes: ", getsize(TOTAL_ROUTES));
+	writeln("Trips: ", getsize(TOTAL_TRIPS));
+	
+	!!!
+	
+	declarations
+		TOTAL_NIN:  array(TOTAL_VERTICES) of set of string;
+		TOTAL_NOUT: array(TOTAL_VERTICES) of set of string;
+		
+		F0: dynamic array(TOTAL_NODES_VP) of real;
+		FT: array(TOTAL_NODES_TP) of real;
+		FE: array(TOTAL_NODES, TOTAL_NODES_TP) of real;
+		FG: array(TOTAL_NODES, TOTAL_NODES_TP) of real;
+		FH: array(TOTAL_NODES, TOTAL_NODES_TP) of real;
+		FD: array(TOTAL_NODES, TOTAL_NODES_TP) of real;
+		FR: array(TOTAL_NODES, TOTAL_NODES_TP) of real;
+		
+		CV: real;
+		CT: array(TOTAL_NODES_TP) of real;
+		CE: array(TOTAL_NODES, TOTAL_NODES_TP) of real;
+		CD: array(TOTAL_NODES, TOTAL_NODES_TP) of real;
+	end-declarations
+	
+	initializations from INSTANCEFILE
+		TOTAL_NIN as 'Nin';
+		TOTAL_NOUT as 'Nout';
+		
+		F0;
+		FT;
+		FE;
+		FG;
+		FH;
+		FD;
+		FR;
+		
+		CV as 'Vehicle_Cost';
+		CT;
+		CE;
+		CD;
+	end-initializations
+	
+	forall(v in TOTAL_NODES) finalize(TOTAL_NIN(v));
+	forall(v in TOTAL_NODES) finalize(TOTAL_NOUT(v));
+	
+	writeln("Data read.");
+	
+	!!!
+	
+	forward procedure solve_partial_instance(index: integer)
+	forward procedure solve_partial_instance_1(index: integer)
+	forward procedure determine_duties(Nodes: set of string)
+	forward procedure determine_endpoints(Duties: set of list of string)
+	
+	!!!
+	
+	declarations
+		sol_x: dynamic array(TOTAL_VERTICES, TOTAL_VERTICES) of real;
+		sol_z: dynamic array(TOTAL_NODES, TOTAL_NODES) of real;
+		sol_e: array(TOTAL_NODES) of real;
+		sol_u: array(TOTAL_ROUTES) of real;
+	end-declarations
+
+	declarations
+		NODES: array(INDICES) of set of string;
+		VERTICES: array(INDICES) of set of string;
+		ENDPOINTS: array(INDICES) of set of string;
+		DUTIES: array(INDICES) of set of list of string;
+		index: integer;
+		
+		NIN: array(TOTAL_VERTICES) of set of string;
+		NOUT: array(TOTAL_VERTICES) of set of string;
+		
+		NODES_VT_1: set of string;
+		NODES_VP_1: set of string;
+		NODES_TP_1: set of string;
+	end-declarations
+	
+	index := getsize(INDICES);
+	
+	ENDPOINTS(index) := {};
+	finalize(ENDPOINTS(index));
+	
+	while(index > 1) do
+	
+		writeln("Partial Instance ", index);
+		
+		NODES(index) := TRIPS(index) + ENDPOINTS(index);
+		finalize(NODES(index));
+		VERTICES(index) := {DS(index), DE(index)} + NODES(index);
+		finalize(VERTICES(index));
+		
+		writeln("[", index, "] Customers: ", getsize(CUSTOMERS(index)));
+		writeln("[", index, "] Routes: ", getsize(ROUTES(index)));
+		writeln("[", index, "] Trips: ", getsize(TRIPS(index)));
+		writeln("[", index, "] Endpoints: ", getsize(ENDPOINTS(index)));
+		writeln("[", index, "] Vertices: ", getsize(VERTICES(index))); 
+		writeln("[", index, "] Refuel point copies: ", sum(s in NODES(index), t in NODES(index) | exists(REFUELPOINT(s, t))) 1);
+
+		NIN(DS(index)) := {};
+		NIN(DE(index)) := NODES(index);
+		forall(t in NODES(index)) NIN(t) := {DS(index)} + (TOTAL_NIN(t) * NODES(index));
+		NOUT(DS(index)) := NODES(index);
+		NOUT(DE(index)) := {};
+		forall(t in NODES(index)) NOUT(t) := {DE(index)} + (TOTAL_NOUT(t) * NODES(index));
+		forall(v in VERTICES(index)) finalize(NIN(v));
+		forall(v in VERTICES(index)) finalize(NOUT(v));
+		
+		forall(p in ENDPOINTS(index)) writeln("F0: ", p, ": ", F0(p));
+		
+		solve_partial_instance(index);
+		
+		determine_duties(NODES(index));
+		
+		determine_endpoints(DUTIES(index));
+		
+		index := index - 1;
+
+	end-do
+	
+	writeln("Partial Instance ", index);
+	
+	NODES(index) := VEHICLES + TRIPS(index) + ENDPOINTS(index);
+	finalize(NODES(index));
+	VERTICES(index) := {DS(index), DE(index)} + NODES(index);
+	finalize(VERTICES(index));
+	NODES_VT_1 := VEHICLES + TRIPS(index);
+	finalize(NODES_VT_1);
+	NODES_VP_1 := VEHICLES + ENDPOINTS(index);
+	finalize(NODES_VP_1);
+	NODES_TP_1 := TRIPS(index) + ENDPOINTS(index);
+	finalize(NODES_TP_1);
+	
+	writeln("[", index, "] Customers: ", getsize(CUSTOMERS(index)));
+	writeln("[", index, "] Routes: ", getsize(ROUTES(index)));
+	writeln("[", index, "] Trips: ", getsize(TRIPS(index)));
+	writeln("[", index, "] Endpoints: ", getsize(ENDPOINTS(index)));
+	writeln("[", index, "] Vertices: ", getsize(VERTICES(index))); 
+	writeln("[", index, "] Refuel point copies: ", sum(s in NODES(index), t in NODES(index) | exists(REFUELPOINT(s, t))) 1);
+	
+	NIN(DS(index)) := {};
+	NIN(DE(index)) := NODES(index);
+	forall(t in VEHICLES) NIN(t) := {DS(index)};
+	forall(t in NODES_TP_1) NIN(t) := TOTAL_NIN(t) * NODES(index);
+	NOUT(DS(index)) := VEHICLES;
+	NOUT(DE(index)) := {};
+	forall(t in NODES(index)) NOUT(t) := {DE(index)} + (TOTAL_NOUT(t) * NODES(index));
+	forall(v in VERTICES(index)) finalize(NIN(v));
+	forall(v in VERTICES(index)) finalize(NOUT(v));
+	
+	forall(p in ENDPOINTS(index)) writeln("F0: ", p, ": ", F0(p));
+	
+	solve_partial_instance_1(index);
+	
+	determine_duties(NODES(index));
+	
+	!!!
+	
+	procedure solve_partial_instance(index: integer)
+	
+		declarations
+			x: dynamic array(TOTAL_VERTICES, TOTAL_VERTICES) of mpvar;
+			z: dynamic array(TOTAL_NODES, TOTAL_NODES) of mpvar;
+			e: dynamic array(TOTAL_NODES) of mpvar;
+			u: dynamic array(TOTAL_ROUTES) of mpvar;
+		end-declarations
+	
+		declarations
+			CarNumber: linctr;
+			TripCost: linctr;
+			DeadheadCost: linctr;
+			TotalCost: linctr;
+			TripNumber: linctr;
+			FuelSum: linctr;
+		
+			BinaryX: dynamic array(TOTAL_VERTICES, TOTAL_VERTICES) of linctr;
+			BinaryZ: dynamic array(TOTAL_NODES, TOTAL_NODES) of linctr;
+			IntervalE: array(TOTAL_NODES) of linctr;
+			BinaryU: array(TOTAL_ROUTES) of linctr;
+			FlowConservation: array(TOTAL_NODES) of linctr;
+			EndpointInflow: dynamic array(TOTAL_SPLITPOINTS) of linctr;
+			Customer: array(TOTAL_CUSTOMERS) of linctr;
+			Route: array(TOTAL_TRIPS) of linctr;
+			DominanceXZ: dynamic array(TOTAL_NODES, TOTAL_NODES) of linctr;
+			EndFuel: dynamic array(TOTAL_SPLITPOINTS) of linctr;
+			BeforeRefuel: dynamic array(TOTAL_NODES, TOTAL_NODES) of linctr;
+			AfterRefuel: dynamic array(TOTAL_NODES, TOTAL_NODES) of linctr;
+			FuelLinkage: dynamic array(TOTAL_NODES, TOTAL_NODES) of linctr;
+			Fmax: dynamic array(TOTAL_TRIPS) of linctr;
+			Fmin: dynamic array(TOTAL_TRIPS) of linctr;
+		end-declarations
+
+		forall(s in VERTICES(index), t in NOUT(s))			create(x(s, t));
+		forall(s in NODES(index), t in NOUT(s)-{DE(index)})	create(z(s, t));
+		forall(t in NODES(index))							create(e(t));
+		forall(m in ROUTES(index))							create(u(m));
+		
+		with mpproblem do
+			CarNumber 		:= sum(s in NODES(index)) x(DS(index), s) - sum(s in ENDPOINTS(index)) x(s, DE(index));
+			TripCost 		:= sum(t in NODES(index), s in NIN(t)) (x(s, t) * CT(t));
+			DeadheadCost 	:= sum(t in NODES(index), s in NIN(t)-{DS(index)}) (x(s, t) * CE(s, t) + z(s, t) * CD(s, t));
+			TotalCost 		:= CarNumber * CV + TripCost + DeadheadCost;
+			TripNumber 		:= sum(t in TRIPS(index), s in NIN(t)) x(s, t);
+			FuelSum			:= sum(t in NODES(index)) e(t);
+				
+			forall(s in VERTICES(index), t in NOUT(s))			BinaryX(s, t) 	:= x(s, t) is_binary;
+			forall(s in NODES(index), t in NOUT(s)-{DE(index)})	BinaryZ(s, t) 	:= z(s, t) is_binary;
+			forall(t in NODES(index))							IntervalE(t) 	:= e(t) <= 1;
+			
+			forall(t in NODES(index))							FlowConservation(t) := sum(s in NIN(t)) x(s, t) = sum(s in NOUT(t)) x(t, s);
+			forall(t in ENDPOINTS(index))						EndpointInflow(t)	:= sum(s in NIN(t)) x(s, t) = 1;
+			forall(c in CUSTOMERS(index))						Customer(c)			:= sum(m in CUSTOMER_ROUTES(c)) u(m) = 1;
+			forall(m in ROUTES(index), t in ROUTE_TRIPS(m))		Route(t)			:= sum(s in NIN(t)) x(s, t) = u(m);
+			forall(s in NODES(index), t in NOUT(s)-{DE(index)})	DominanceXZ(s, t)   := z(s,t) <= x(s, t);
+			forall(s in ENDPOINTS(index))						EndFuel(s)			:= F0(s) <= e(s);
+			forall(s in NODES(index), t in NOUT(s)-{DE(index)})	BeforeRefuel(s, t)  := z(s, t) * FG(s, t) <= e(s);
+			forall(s in NODES(index), t in NOUT(s)-{DE(index)})	AfterRefuel(s, t)   := e(t) <= 1 - z(s, t) * FH(s, t) - FT(t);
+			forall(s in NODES(index), t in NOUT(s)-{DE(index)})	FuelLinkage(s, t)   := e(t) <= e(s) - x(s, t) * (FE(s, t) + FT(t)) + z(s, t) * (FR(s, t) - FD(s, t)) + 1 - x(s, t); 
+			!forall(s in TRIPS(index))							Fmax(s)				:= e(s) + FT(s) <= FMAX(s) + (1 - x(DS, s)) * (1 + FT(s));
+			!forall(s in TRIPS(index))							Fmin(s)				:= FMIN(s) <= e(s) + (1 - x(s, DE));
+			
+			loadprob(TotalCost);
+			writeln("[", index, "] Model loaded.");
+			
+			minimize(TotalCost);
+			
+			writeln("[", index, "] Total Cost: ", getsol(TotalCost));
+			writeln("[", index, "] Number of Cars: ", getsol(CarNumber));
+			writeln("[", index, "] Trip Cost: ", getsol(TripCost));
+			writeln("[", index, "] Deadhead Cost: ", getsol(DeadheadCost));
+			writeln("[", index, "] Number of Trips: ", getsol(TripNumber));
+			writeln("[", index, "] Fuel Sum (before): ", getsol(FuelSum));
+			
+			forall(s in VERTICES(index), t in NOUT(s))			sol_x(s, t)	:= getsol(x(s, t));
+			forall(s in NODES(index), t in NOUT(s)-{DE(index)})	sol_z(s, t)	:= getsol(z(s, t));
+			forall(t in NODES(index))							sol_e(t)	:= getsol(e(t));
+			forall(m in ROUTES(index))							sol_u(m)	:= getsol(u(m));
+		
+		end-do
+		
+		!!!
+		
+		with mpproblem do
+
+			forall(s in VERTICES(index), t in NOUT(s))			x(s, t) = sol_x(s, t);
+			forall(s in NODES(index), t in NOUT(s)-{DE(index)})	z(s, t) = sol_z(s, t);
+			forall(t in NODES(index))							IntervalE(t);
+			
+			forall(s in ENDPOINTS(index))						EndFuel(s);
+			forall(s in TRIPS(index), t in NOUT(s)-{DE(index)})	BeforeRefuel(s, t);
+			forall(s in TRIPS(index), t in NOUT(s)-{DE(index)})	AfterRefuel(s, t);
+			forall(s in TRIPS(index), t in NOUT(s)-{DE(index)})	FuelLinkage(s, t); 
+			!forall(s in TRIPS(index))							Fmax(s);
+			!forall(s in TRIPS(index))							Fmin(s);
+
+			loadprob(FuelSum);
+		
+			!load_solution(sol_x, sol_z, sol_e);
+		
+			minimize(FuelSum);
+
+			writeln("[", index, "] Fuel Sum (after): ", getsol(FuelSum));
+			
+			forall(s in VERTICES(index), t in NOUT(s))			sol_x(s, t)	:= getsol(x(s, t));
+			forall(s in NODES(index), t in NOUT(s)-{DE(index)})	sol_z(s, t)	:= getsol(z(s, t));
+			forall(t in NODES(index))							sol_e(t)	:= getsol(e(t));
+			forall(m in ROUTES(index))							sol_u(m)	:= getsol(u(m));
+		
+		end-do
+	
+	end-procedure
+	
+	!!!
+	
+	procedure solve_partial_instance_1(index: integer)
+	
+		declarations
+			x: dynamic array(TOTAL_VERTICES, TOTAL_VERTICES) of mpvar;
+			z: dynamic array(TOTAL_NODES, TOTAL_NODES) of mpvar;
+			e: dynamic array(TOTAL_NODES) of mpvar;
+			u: dynamic array(TOTAL_ROUTES) of mpvar;
+		end-declarations
+	
+		declarations
+			CarNumber: linctr;
+			TripCost: linctr;
+			DeadheadCost: linctr;
+			TotalCost: linctr;
+			TripNumber: linctr;
+			FuelSum: linctr;
+		
+			BinaryX: dynamic array(TOTAL_VERTICES, TOTAL_VERTICES) of linctr;
+			BinaryZ: dynamic array(TOTAL_NODES, TOTAL_NODES) of linctr;
+			IntervalE: array(TOTAL_NODES) of linctr;
+			BinaryU: array(TOTAL_ROUTES) of linctr;
+			FlowConservation: array(TOTAL_NODES) of linctr;
+			VehicleInflow: dynamic array(VEHICLES) of linctr;
+			EndpointInflow: dynamic array(TOTAL_SPLITPOINTS) of linctr;
+			Customer: array(TOTAL_CUSTOMERS) of linctr;
+			Route: array(TOTAL_TRIPS) of linctr;
+			DominanceXZ: dynamic array(TOTAL_NODES, TOTAL_NODES) of linctr;
+			StartFuel: array(VEHICLES) of linctr;
+			EndFuel: dynamic array(TOTAL_SPLITPOINTS) of linctr;
+			BeforeRefuel: dynamic array(TOTAL_NODES, TOTAL_NODES) of linctr;
+			AfterRefuel: dynamic array(TOTAL_NODES, TOTAL_NODES) of linctr;
+			FuelLinkage: dynamic array(TOTAL_NODES, TOTAL_NODES) of linctr;
+			Fmax: dynamic array(TOTAL_TRIPS) of linctr;
+			Fmin: dynamic array(TOTAL_TRIPS) of linctr;
+		end-declarations
+
+		forall(s in VERTICES(index), t in NOUT(s))			create(x(s, t));
+		forall(s in NODES(index), t in NOUT(s)-{DE(index)})	create(z(s, t));
+		forall(t in NODES(index))							create(e(t));
+		forall(m in ROUTES(index))							create(u(m));
+		
+		with mpproblem do
+			CarNumber		:= sum(s in VEHICLES, t in NOUT(s)-{DE(index)}) x(s, t) - sum(s in ENDPOINTS(index)) x(s, DE(index));
+			TripCost 		:= sum(t in NODES_TP_1, s in NIN(t)) (x(s, t) * CT(t));
+			DeadheadCost 	:= sum(t in NODES_TP_1, s in NIN(t)) (x(s, t) * CE(s, t) + z(s, t) * CD(s, t));
+			TotalCost 		:= CarNumber * CV + TripCost + DeadheadCost;
+			TripNumber 		:= sum(t in TRIPS(index), s in NIN(t)) x(s, t);
+			FuelSum			:= sum(t in NODES(index)) e(t);
+				
+			forall(s in VERTICES(index), t in NOUT(s))			BinaryX(s, t) 	:= x(s, t) is_binary;
+			forall(s in NODES(index), t in NOUT(s)-{DE(index)})	BinaryZ(s, t) 	:= z(s, t) is_binary;
+			forall(t in NODES(index))							IntervalE(t) 	:= e(t) <= 1;
+			
+			forall(t in NODES(index))							FlowConservation(t) := sum(s in NIN(t)) x(s, t) = sum(s in NOUT(t)) x(t, s);
+			forall(t in VEHICLES)								VehicleInflow(t)	:= sum(s in NIN(t)) x(s, t) = 1;
+			forall(t in ENDPOINTS(index))						EndpointInflow(t)	:= sum(s in NIN(t)) x(s, t) = 1;
+			forall(c in CUSTOMERS(index))						Customer(c)			:= sum(m in CUSTOMER_ROUTES(c)) u(m) = 1;
+			forall(m in ROUTES(index), t in ROUTE_TRIPS(m))		Route(t)			:= sum(s in NIN(t)) x(s, t) = u(m);
+			forall(s in NODES(index), t in NOUT(s)-{DE(index)})	DominanceXZ(s, t)   := z(s,t) <= x(s, t);
+			forall(s in VEHICLES)								StartFuel(s)		:= e(s) <= F0(s);
+			forall(s in ENDPOINTS(index))						EndFuel(s)			:= F0(s) <= e(s);
+			forall(s in NODES(index), t in NOUT(s)-{DE(index)})	BeforeRefuel(s, t)  := z(s, t) * FG(s, t) <= e(s);
+			forall(s in NODES(index), t in NOUT(s)-{DE(index)})	AfterRefuel(s, t)   := e(t) <= 1 - z(s, t) * FH(s, t) - FT(t);
+			forall(s in NODES(index), t in NOUT(s)-{DE(index)})	FuelLinkage(s, t)   := e(t) <= e(s) - x(s, t) * (FE(s, t) + FT(t)) + z(s, t) * (FR(s, t) - FD(s, t)) + 1 - x(s, t); 
+			!forall(s in TRIPS(index))							Fmax(s)				:= e(s) + FT(s) <= FMAX(s) + (1 - x(DS, s)) * (1 + FT(s));
+			!forall(s in TRIPS(index))							Fmin(s)				:= FMIN(s) <= e(s) + (1 - x(s, DE));
+			
+			loadprob(TotalCost);
+			writeln("[", index, "] Model loaded.");
+			
+			minimize(TotalCost);
+			
+			writeln("[", index, "] Total Cost: ", getsol(TotalCost));
+			writeln("[", index, "] Number of Cars: ", getsol(CarNumber));
+			writeln("[", index, "] Trip Cost: ", getsol(TripCost));
+			writeln("[", index, "] Deadhead Cost: ", getsol(DeadheadCost));
+			writeln("[", index, "] Number of Trips: ", getsol(TripNumber));
+			writeln("[", index, "] Fuel Sum: ", getsol(FuelSum));
+			
+			forall(s in VERTICES(index), t in NOUT(s))			sol_x(s, t)	:= getsol(x(s, t));
+			forall(s in NODES(index), t in NOUT(s)-{DE(index)})	sol_z(s, t)	:= getsol(z(s, t));
+			forall(t in NODES(index))							sol_e(t)	:= getsol(e(t));
+			forall(m in ROUTES(index))							sol_u(m)	:= getsol(u(m));
+		
+		end-do
+	
+	end-procedure
+	
+	!!!
+	
+	procedure determine_duties(Nodes: set of string)
+		
+		declarations
+			PARTIAL_DUTIES: dynamic array(Nodes) of list of string;
+			s1: string;
+			s2: string;
+			r: string;
+		end-declarations
+		
+		forall(t in Nodes | sol_x(DS(index), t) = 1) do
+			PARTIAL_DUTIES(t) := [t];
+			s1 := t;
+			while(true) do
+				s2 := DE(index);
+				forall(v in NOUT(s1) | sol_x(s1, v) = 1) s2 := v;
+				if s2 = DE(index) then
+					break;
+				end-if
+				r := '';
+				if sol_z(s1, s2) = 1 then
+					r := REFUELPOINT(s1, s2);
+					PARTIAL_DUTIES(t) += [r, s2];
+				else
+					PARTIAL_DUTIES(t) += [s2];
+				end-if
+				s1 := s2;
+			end-do
+			DUTIES(index) += {PARTIAL_DUTIES(t)};
+		end-do
+		
+		writeln("DUTIES(", index, "): ", DUTIES(index));
+	
+	end-procedure
+	
+	!!!
+	
+	procedure determine_endpoints(Duties: set of list of string)
+	
+		declarations
+			sp: string;
+			ep: string;
+			t: string;
+		end-declarations
+		
+		forall(duty in Duties) do
+			sp := getfirst(duty);
+			ep := '';
+			if sp in SPLITPOINTS(index) then
+				t := '';
+				forall(v in TOTAL_NOUT(sp) * TOTAL_TRIPS) t := v;
+				if t = '' then
+					writeln("Warning: No corresponding trip found for ", sp);
+				end-if
+				sp := t;
+			end-if
+			forall(v in (TOTAL_NIN(sp) * SPLITPOINTS(index-1))) ep := v;
+			if ep = '' then
+				writeln("Warning: No corresponding splitpoint found for ", sp);
+			end-if
+			ENDPOINTS(index-1) += {ep};
+			F0(ep) := sol_e(sp) + FT(sp);
+		end-do
+		
+		writeln("ENDPOINTS:(", index-1, "): ", ENDPOINTS(index-1));
+
+	end-procedure
+
+end-model
