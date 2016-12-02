@@ -4,8 +4,8 @@ model "model"
 	uses "mmxprs";
 	
 	parameters
-		INSTANCE     = "..\\..\\data\\instance_c50u_total\\instance";
-		INSTANCEFILE = INSTANCE + ".split.txt";
+		INSTANCE     = "..\\..\\data\\instance_v100c200_total\\instance.split4";
+		INSTANCEFILE = INSTANCE + ".txt";
 		OUTFILE      = INSTANCE + ".customer.xpress.txt";
 	end-parameters
 	
@@ -129,13 +129,15 @@ model "model"
 		FH: array(TOTAL_NODES, TOTAL_NODES_TP) of real;
 		FD: array(TOTAL_NODES, TOTAL_NODES_TP) of real;
 		FR: array(TOTAL_NODES, TOTAL_NODES_TP) of real;
+		FMIN: array(TOTAL_TRIPS) of real;
+		FMAX: array(TOTAL_TRIPS) of real;
 		
 		CV: real;
 		CT: array(TOTAL_NODES_TP) of real;
 		CE: array(TOTAL_NODES, TOTAL_NODES_TP) of real;
 		CD: array(TOTAL_NODES, TOTAL_NODES_TP) of real;
 	end-declarations
-	
+
 	initializations from INSTANCEFILE
 		TOTAL_NIN as 'Nin';
 		TOTAL_NOUT as 'Nout';
@@ -147,6 +149,8 @@ model "model"
 		FH;
 		FD;
 		FR;
+		FMIN as 'Fmin';
+		FMAX as 'Fmax';
 		
 		CV as 'Vehicle_Cost';
 		CT;
@@ -165,6 +169,7 @@ model "model"
 	forward procedure solve_partial_instance_1(index: integer)
 	forward procedure determine_duties(Nodes: set of string)
 	forward procedure determine_endpoints(Duties: set of list of string)
+	forward procedure connect_duties
 	
 	!!!
 	
@@ -220,8 +225,6 @@ model "model"
 		forall(v in VERTICES(index)) finalize(NIN(v));
 		forall(v in VERTICES(index)) finalize(NOUT(v));
 		
-		forall(p in ENDPOINTS(index)) writeln("F0: ", p, ": ", F0(p));
-		
 		solve_partial_instance(index);
 		
 		determine_duties(NODES(index));
@@ -262,11 +265,39 @@ model "model"
 	forall(v in VERTICES(index)) finalize(NIN(v));
 	forall(v in VERTICES(index)) finalize(NOUT(v));
 	
-	forall(p in ENDPOINTS(index)) writeln("F0: ", p, ": ", F0(p));
-	
 	solve_partial_instance_1(index);
 	
 	determine_duties(NODES(index));
+	
+	declarations
+		CarNumber: real;
+		TripCost: real;
+		DeadheadCost: real;
+		TotalCost: real;
+		TripNumber: real;
+	end-declarations
+	
+	CarNumber 		:= sum(s in VEHICLES, t in NOUT(s)-{DE(1)}) sol_x(s, t);
+	TripCost		:= sum(t in TOTAL_TRIPS, s in NIN(t)) (sol_x(s, t) * CT(t));
+	DeadheadCost	:= sum(t in TOTAL_NODES_TP, s in NIN(t) - union(i in INDICES) {DS(i)}) (sol_x(s, t) * CE(s, t) + sol_z(s, t) * CD(s, t));
+	TotalCost		:= CarNumber * CV + TripCost + DeadheadCost;
+	TripNumber		:= sum(t in TOTAL_TRIPS, s in NIN(t)) sol_x(s, t);
+	
+	writeln("Total Cost: ", TotalCost);
+	writeln("Number of Cars: ", CarNumber);
+	writeln("Trip Cost: ", TripCost);
+	writeln("Deadhead Cost: ", DeadheadCost);
+	writeln("Number of Trips: ", TripNumber);
+	
+	declarations
+		TOTAL_DUTIES: dynamic array(VEHICLES) of list of string;
+	end-declarations
+	
+	connect_duties;
+	
+	initializations to OUTFILE
+		TOTAL_DUTIES as 'Duties';
+	end-initializations
 	
 	!!!
 	
@@ -302,6 +333,8 @@ model "model"
 			FuelLinkage: dynamic array(TOTAL_NODES, TOTAL_NODES) of linctr;
 			Fmax: dynamic array(TOTAL_TRIPS) of linctr;
 			Fmin: dynamic array(TOTAL_TRIPS) of linctr;
+			
+			VehicleThreshold: linctr;
 		end-declarations
 
 		forall(s in VERTICES(index), t in NOUT(s))			create(x(s, t));
@@ -330,8 +363,10 @@ model "model"
 			forall(s in NODES(index), t in NOUT(s)-{DE(index)})	BeforeRefuel(s, t)  := z(s, t) * FG(s, t) <= e(s);
 			forall(s in NODES(index), t in NOUT(s)-{DE(index)})	AfterRefuel(s, t)   := e(t) <= 1 - z(s, t) * FH(s, t) - FT(t);
 			forall(s in NODES(index), t in NOUT(s)-{DE(index)})	FuelLinkage(s, t)   := e(t) <= e(s) - x(s, t) * (FE(s, t) + FT(t)) + z(s, t) * (FR(s, t) - FD(s, t)) + 1 - x(s, t); 
-			!forall(s in TRIPS(index))							Fmax(s)				:= e(s) + FT(s) <= FMAX(s) + (1 - x(DS, s)) * (1 + FT(s));
-			!forall(s in TRIPS(index))							Fmin(s)				:= FMIN(s) <= e(s) + (1 - x(s, DE));
+			forall(s in TRIPS(index))							Fmax(s)				:= e(s) + FT(s) <= FMAX(s) + (1 - x(DS(index), s)) * (1 + FT(s));
+			forall(s in TRIPS(index))							Fmin(s)				:= FMIN(s) <= e(s) + (1 - x(s, DE(index)));
+			
+																VehicleThreshold	:= sum(s in NOUT(DS(index))) x(DS(index), s) <= getsize(VEHICLES);
 			
 			loadprob(TotalCost);
 			writeln("[", index, "] Model loaded.");
@@ -364,8 +399,8 @@ model "model"
 			forall(s in TRIPS(index), t in NOUT(s)-{DE(index)})	BeforeRefuel(s, t);
 			forall(s in TRIPS(index), t in NOUT(s)-{DE(index)})	AfterRefuel(s, t);
 			forall(s in TRIPS(index), t in NOUT(s)-{DE(index)})	FuelLinkage(s, t); 
-			!forall(s in TRIPS(index))							Fmax(s);
-			!forall(s in TRIPS(index))							Fmin(s);
+			forall(s in TRIPS(index))							Fmax(s);
+			forall(s in TRIPS(index))							Fmin(s);
 
 			loadprob(FuelSum);
 		
@@ -450,8 +485,8 @@ model "model"
 			forall(s in NODES(index), t in NOUT(s)-{DE(index)})	BeforeRefuel(s, t)  := z(s, t) * FG(s, t) <= e(s);
 			forall(s in NODES(index), t in NOUT(s)-{DE(index)})	AfterRefuel(s, t)   := e(t) <= 1 - z(s, t) * FH(s, t) - FT(t);
 			forall(s in NODES(index), t in NOUT(s)-{DE(index)})	FuelLinkage(s, t)   := e(t) <= e(s) - x(s, t) * (FE(s, t) + FT(t)) + z(s, t) * (FR(s, t) - FD(s, t)) + 1 - x(s, t); 
-			!forall(s in TRIPS(index))							Fmax(s)				:= e(s) + FT(s) <= FMAX(s) + (1 - x(DS, s)) * (1 + FT(s));
-			!forall(s in TRIPS(index))							Fmin(s)				:= FMIN(s) <= e(s) + (1 - x(s, DE));
+			forall(s in TRIPS(index))							Fmax(s)				:= e(s) + FT(s) <= FMAX(s) + (1 - x(DS(index), s)) * (1 + FT(s));
+			forall(s in TRIPS(index))							Fmin(s)				:= FMIN(s) <= e(s) + (1 - x(s, DE(index)));
 			
 			loadprob(TotalCost);
 			writeln("[", index, "] Model loaded.");
@@ -505,8 +540,6 @@ model "model"
 			end-do
 			DUTIES(index) += {PARTIAL_DUTIES(t)};
 		end-do
-		
-		writeln("DUTIES(", index, "): ", DUTIES(index));
 	
 	end-procedure
 	
@@ -538,9 +571,42 @@ model "model"
 			ENDPOINTS(index-1) += {ep};
 			F0(ep) := sol_e(sp) + FT(sp);
 		end-do
-		
-		writeln("ENDPOINTS:(", index-1, "): ", ENDPOINTS(index-1));
 
 	end-procedure
+	
+	procedure connect_duties
+		
+		declarations
+			INITIAL_DUTIES: dynamic array(VEHICLES) of list of string;
+			PARTIAL_DUTIES: dynamic array(TOTAL_TRIPS) of list of string;
+			v: string;
+			ep: string;
+			sp: string;
+		end-declarations
+		
+		forall(duty in DUTIES(1)) do
+			v := getfirst(duty);
+			ep := getlast(duty);
+			if ep in VEHICLES then
+				next;
+			end-if
+			cuthead(duty, 1);
+			TOTAL_DUTIES(v) := duty;
+			while(ep not in TOTAL_TRIPS) do
+				sp := '';
+				forall(d in union(i in INDICES) DUTIES(i) | getfirst(d) in TOTAL_NOUT(ep)) do
+					sp := getfirst(d);
+					PARTIAL_DUTIES(sp) := d;
+				end-do
+				if sp = '' then
+					writeln("Warning: No connecting duty found for ", ep);
+				end-if
+				cuttail(TOTAL_DUTIES(v), 1);
+				TOTAL_DUTIES(v) += PARTIAL_DUTIES(sp);
+				ep := getlast(TOTAL_DUTIES(v));
+			end-do
+		end-do
+	
+	end-procedure	
 
 end-model

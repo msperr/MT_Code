@@ -33,7 +33,9 @@ def create_taskgraph_preprocessing(args):
                     'fg': instance.dist(s, p) * instance._fuelpermeter if p else 1.1,
                     'fh': instance.dist(p, t) * instance._fuelpermeter if p else 1.1,
                     'fd': (instance.dist(s, p) + instance.dist(p, t) - instance.dist(s, t)) * instance._fuelpermeter if p else 1.1,
-                    'fr': min((t.start_time - (s.start_time if isinstance(s, entities.Vehicle) else s.finish_time) - instance.timedelta(s, p) - instance.timedelta(p, t)).total_seconds() * instance._refuelpersecond, 1.0) if p else 0.0
+                    'fr': min((t.start_time - (s.start_time if isinstance(s, entities.Vehicle) else s.finish_time) - instance.timedelta(s, p) - instance.timedelta(p, t)).total_seconds() * instance._refuelpersecond, 1.0) if p else 0.0,
+                    'ce': instance.dist(s, t) * instance._costpermeter,
+                    'cd': (instance.dist(s, p) + instance.dist(p, t) - instance.dist(s, t)) * instance._costpermeter if p else 0.0
                 })
                 
                 if edge[2]['refuelpoint']:
@@ -72,7 +74,9 @@ def create_taskgraph(instance):
 
     G.add_nodes_from((t, {
         'ft': t.distance * instance._fuelpermeter,
-        'ct': t.distance * instance._costpermeter
+        'ct': t.distance * instance._costpermeter,
+        'fmin': min(map(lambda k: instance.dist(t, k)*instance._fuelpermeter, instance.refuelpoints)),
+        'fmax': 1 - min(map(lambda k: instance.dist(k, t)*instance._fuelpermeter, instance.refuelpoints))
     }) for t in instance._trips)
 
     G.add_nodes_from((s, {
@@ -85,8 +89,8 @@ def create_taskgraph(instance):
 
     original = {t: t for t in itertools.chain(instance._vehicles, instance._refuelpoints, instance._trips, spots)}
     
-    n = int(len(instance.vertices)/16)+1
-    progress = progressbar.ProgressBar(maxval=16, widgets=[progressbar.Bar('#', '[', ']'), ' ', progressbar.Percentage(), ' ', progressbar.Timer(), ' ', progressbar.ETA()], term_width=config['console']['width']).start()
+    n = int(len(instance.vertices)/64)+1
+    progress = progressbar.ProgressBar(maxval=64, widgets=[progressbar.Bar('#', '[', ']'), ' ', progressbar.Percentage(), ' ', progressbar.Timer(), ' ', progressbar.ETA()], term_width=config['console']['width']).start()
     progresscount = itertools.count(1)
     
     for edges in pool.imap_unordered(create_taskgraph_preprocessing, ((instance, these) for these in util.grouperList(instance.vertices, n))):
@@ -94,6 +98,11 @@ def create_taskgraph(instance):
             attr['refuelpoint'] = original[attr['refuelpoint']] if attr['refuelpoint'] else None
             G.add_edge(original[s], original[t], attr)
         progress.update(progresscount.next())
+    
+    #for edges in create_taskgraph_preprocessing((instance, instance.vertices)):
+    #    for s, t, attr in edges:
+    #        attr['refuelpoint'] = original[attr['refuelpoint']] if attr['refuelpoint'] else None
+    #        G.add_edge(original[s], original[t], attr)
     
     progress.finish()
 
@@ -178,9 +187,13 @@ def save_taskgraph_to_xpress(instance, G, filename):
         ('FH', (((v, w), attr['fh']) for v, w, attr in G.edges_iter(data=True) if 'fh' in attr)),
         ('FD', (((v, w), attr['fd']) for v, w, attr in G.edges_iter(data=True) if 'fd' in attr)),
         ('FR', (((v, w), attr['fr']) for v, w, attr in G.edges_iter(data=True) if 'fr' in attr)),
+        ('CT', ((v, attr['ct']) for v, attr in G.nodes_iter(data=True) if 'ct' in attr)),
+        ('CE', (((v, w), attr['ce']) for v, w, attr in G.edges_iter(data=True) if 'ce' in attr)),
+        ('CD', (((v, w), attr['cd']) for v, w, attr in G.edges_iter(data=True) if 'cd' in attr)),
         ('Customers', (c for c in instance._customers.iterkeys())),
         ('Customer_Routes', ((c, r) for (c, r) in instance._customers.iteritems())),
-        ('Routes', ((r, [xpress.xpress_index(t)]) for (r, t) in instance._routes.iteritems()))
+        ('Routes', ((r, [xpress.xpress_index(t)]) for (r, t) in instance._routes.iteritems())),
+        ('Vehicle_Cost', instance._costpercar)
     ])
 
     with open(filename, 'w') as f:
@@ -198,8 +211,6 @@ def save_split_taskgraph_to_xpress(instance, G, splitpoint_list, trip_list, cust
         ('DS', G.graph['ds']),
         ('DE', G.graph['de']),
         ('Vehicles', (xpress.xpress_index(s) for s in G.nodes_iter() if isinstance(s, entities.Vehicle))),
-        ('Trips', (xpress.xpress_index(t) for t in G.nodes_iter() if isinstance(t, entities.Trip))),
-        ('Splitpoints', (xpress.xpress_index(s) for s in G.nodes_iter() if isinstance(s, entities.Splitpoint))),
         ('Refuelpoints', (((v, w), xpress.xpress_index(attr['refuelpoint']) if attr['refuelpoint'] else '') for v, w, attr in G.edges_iter(data=True) if 'refuelpoint' in attr)),
         ('Nin', ((v, (xpress.xpress_index(w) for w in G.predecessors_iter(v))) for v in G.nodes())),
         ('Nout', ((v, (xpress.xpress_index(w) for w in G.successors_iter(v))) for v in G.nodes())),
@@ -213,7 +224,8 @@ def save_split_taskgraph_to_xpress(instance, G, splitpoint_list, trip_list, cust
         ('CT', ((v, attr['ct']) for v, attr in G.nodes_iter(data=True) if 'ct' in attr)),
         ('CE', (((v, w), attr['ce']) for v, w, attr in G.edges_iter(data=True) if 'ce' in attr)),
         ('CD', (((v, w), attr['cd']) for v, w, attr in G.edges_iter(data=True) if 'cd' in attr)),
-        ('Customers', (c for c in instance._customers.iterkeys())),
+        ('Fmin', ((v, attr['fmin']) for v, attr in G.nodes_iter(data=True) if 'fmin' in attr)),
+        ('Fmax', ((v, attr['fmax']) for v, attr in G.nodes_iter(data=True) if 'fmax' in attr)),
         ('Customer_Routes', ((c, r) for (c, r) in instance._customers.iteritems())),
         ('Routes', ((r, [xpress.xpress_index(t)]) for (r, t) in instance._routes.iteritems())),
         ('Vehicle_Cost', instance._costpercar)
@@ -249,9 +261,10 @@ def load_taskgraph_from_json(filename, dictionary):
     de = data['attributes']['de']
     fuelpermeter = data['attributes']['fuelpermeter']
     refuelpersecond = data['attributes']['refuelpersecond']
-    costpermeter = data['attributes']['costpermeter']
-    costpercar = data['attributes']['costpercar']
-    G = networkx.DiGraph(ds=ds, de=de, fuelpermeter=fuelpermeter, refuelpersecond=refuelpersecond, costpermeter=costpermeter, costpercar=costpercar)
+    #costpermeter = data['attributes']['costpermeter']
+    #costpercar = data['attributes']['costpercar']
+    #G = networkx.DiGraph(ds=ds, de=de, fuelpermeter=fuelpermeter, refuelpersecond=refuelpersecond, costpermeter=costpermeter, costpercar=costpercar)
+    G = networkx.DiGraph(ds=ds, de=de, fuelpermeter=fuelpermeter, refuelpersecond=refuelpersecond)
     for node in data['nodes']:
         for key in node:
             if key == ds or key == de:

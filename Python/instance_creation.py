@@ -1,7 +1,6 @@
 from argparse import ArgumentParser
 from datetime import datetime, timedelta
 import random
-import os
 from itertools import count
 
 import progressbar
@@ -32,9 +31,9 @@ if __name__ == '__main__':
     instance_start = datetime(2015, 10, 01, 03)
     instance_finish = instance_start + timedelta(days=1)
     
-    instance = storage.load_instance_from_json(args.instance)
-    
-    print 'Instance successfully loaded'
+    filename = config['data']['base'] + (args.instance if args.instance else config['data']['instance'])
+    instance = storage.load_instance_from_json(filename)
+    print 'Instance successfully loaded from %s' % filename
     
     location_id = instance._trips[0].location_id
     servicedrive = instance._trips[0].servicedrive
@@ -61,17 +60,18 @@ if __name__ == '__main__':
         } for (trip_index, trip) in enumerate(tmp_trips)])
     
     if args.vehicle_number:
-        if args.vehicle_number <= len(instance._vehicles):
-            vehicles = random.sample(instance._vehicles, args.vehicle_number)
+        if args.vehicle_number <= len(instance.vehicles):
+            vehicle_locs = random.sample(map(lambda k: k.start_loc, instance.vehicles), args.vehicle_number)
         else:
-            new_vehicles = ([entities.Vehicle(
-                vehicle_id = 'V%d' % vehicle_index,
-                start_time = instance_start,
-                start_loc = trip.finish_loc
-            ) for (vehicle_index, trip) in enumerate(random.sample(instance._trips, args.vehicle_number - len(instance._vehicles)))])
-            vehicles = instance._vehicles + new_vehicles
+            vehicle_locs = map(lambda k: k.start_loc, instance.vehicles) + random.sample(map(lambda k: k.finish_loc, instance.trips), args.vehicle_number - len(instance.vehicles))
     else:
-        vehicles = instance._vehicles
+        vehicle_locs = map(lambda k: k.start_loc, instance.vehicles)
+    
+    vehicles = ([entities.Vehicle(
+        vehicle_id = 'V%04d' % vehicle_index,
+        start_time = instance_start,
+        start_loc = vehicle_loc
+    ) for (vehicle_index, vehicle_loc) in enumerate(vehicle_locs)])
 
     print 'Creating trips with OTP ...'
 
@@ -86,7 +86,7 @@ if __name__ == '__main__':
     progresscount = count(1)
     
     for tmp_trip in prop_customers:
-        result = otp.route(tmp_trip['start_loc'], tmp_trip['finish_loc'], tmp_trip['start_time'])
+        result = otp.route(tmp_trip['start_loc'], tmp_trip['finish_loc'], tmp_trip['start_time'] + timedelta(seconds=7200))
         
         if not result:
             progress.update(progresscount.next())
@@ -118,11 +118,8 @@ if __name__ == '__main__':
     
     new_instance = Instance(vehicles, customers, routes, instance._refuelpoints, instance._fuelpermeter, instance._refuelpersecond, instance._costpermeter, instance._costpercar)
     
-    if args.fileoutput:
-        basename, _ = os.path.splitext(args.fileoutput)
-        new_instance._basename = basename
-    else:
-        new_instance._basename = 'new_instance'
+    basename = config['data']['base'] + (args.fileoutput if args.fileoutput else args.instance.split('.json')[0])
+    new_instance._basename = basename
     
     print 'New instance created'
     
@@ -131,9 +128,8 @@ if __name__ == '__main__':
         print 'Vehicles: %d, Customers: %d, Routes: %d, Trips: %d, Refuelpoints: %d' % (len(new_instance.vehicles), len(new_instance._customers), len(new_instance._routes), len(new_instance._trips), len(new_instance._refuelpoints))
         print 'Start: %s, Finish: %s' % (new_instance.starttime.strftime('%Y-%m-%d %H:%M:%S'), new_instance.finishtime.strftime('%Y-%m-%d %H:%M:%S'))
     
-    if args.fileoutput:
-        filename = '%s.json' % args.fileoutput
-        storage.save_instance_to_json(filename, new_instance)
-        print 'Successfully saved instance to %s' % filename
+    filename = '%s.json' % basename
+    storage.save_instance_to_json(filename, new_instance)
+    print 'Successfully saved instance to %s' % filename
     
     print '[INFO] Process finished'

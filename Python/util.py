@@ -20,6 +20,10 @@ def timerange(start_time, finish_time, time_step):
     for n in range(0, int((finish_time - start_time).total_seconds()), int(time_step.total_seconds())):
         yield start_time + timedelta(seconds = n)
 
+def timelist(start_time, finish_time, time_step=0, length=0):
+    step = time_step if time_step > 0 else (finish_time-start_time)/length
+    return [t for t in timerange(start_time, finish_time, step)]
+
 def to_datetime(n):
     min_date = datetime(1970, 1, 1)
     return min_date + timedelta(milliseconds = n) 

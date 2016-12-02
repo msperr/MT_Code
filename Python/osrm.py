@@ -39,7 +39,6 @@ class osrm(object):
 
         query = util.url('http', self.host, self.port, 'matrix', {})
         query = query + '?' + '&'.join([('src=%f,%f' % (src.lat, src.lon)) for src in sources if src] + [('trgt=%f,%f' % (trgt.lat, trgt.lon)) for trgt in targets if trgt])
-        print 'Query', query
         response = requests.get(query).json()
 
         time = numpy.asarray(response['duration_table'], dtype=numpy.int32) / 10
@@ -84,8 +83,8 @@ class osrm_parallel(object):
 
     def matrix(self, these, those):
 
-        these = [t.finish_loc if isinstance(t, (entities.Vehicle, entities.Trip)) else t for t in these]
-        those = [t.start_loc if isinstance(t, (entities.Vehicle, entities.Trip)) else t for t in those]
+        these = [t.finish_loc if isinstance(t, (entities.Vehicle, entities.Trip)) else (t.location if isinstance(t, entities.RefuelPoint) else t) for t in these]
+        those = [t.start_loc if isinstance(t, (entities.Vehicle, entities.Trip)) else (t.location if isinstance(t, entities.RefuelPoint) else t) for t in those]
 
         time = numpy.empty((len(these), len(those)), dtype=numpy.int32)
         dist = numpy.empty((len(these), len(those)), dtype=numpy.int32)

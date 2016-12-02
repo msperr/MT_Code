@@ -2,6 +2,10 @@
 	"console": {
 		"width": 100
 	},
+	"data": {
+		"base": "../../data/",
+		"instance": "instance.json"
+	},
 	"osrm": {
 		"executable": "../../routing/osrm/osrm-routed.exe",
 		"osm": "../../routing/osm/stgt/stuttgart-regbez-latest.osrm",

@@ -55,7 +55,7 @@ class Otp(object):
         response = r.json()
 
         if 'error' in response:
-            print response['error']['message'], '(%s), (%s)' % (parameters['fromPlace'], parameters['toPlace'])
+            #print response['error']['message'], '(%s), (%s)' % (parameters['fromPlace'], parameters['toPlace'])
             return None
         return response['plan']['itineraries']
 

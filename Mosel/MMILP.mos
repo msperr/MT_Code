@@ -4,14 +4,15 @@ model "model"
 	uses "mmxprs";
 	
 	parameters
-		INSTANCE     = "..\\..\\data\\\instance_v100c200_total\\instance";
+		INSTANCE     = "..\\..\\data\\instance_v100c200_total\\instance";
 		INSTANCEFILE = INSTANCE + ".txt";
 		OUTFILE      = INSTANCE + ".xpress.txt";
 	end-parameters
 	
 	setparam("XPRS_verbose", true);
-	setparam("XPRS_heurstrategy", 0);
-	setparam("XPRS_presolve", 0);
+	!setparam("XPRS_heurstrategy", 0);
+	!setparam("XPRS_presolve", 0);
+	setparam("XPRS_threads", 4);
 	
 	!!!
 
