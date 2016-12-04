@@ -2,14 +2,17 @@ model "model"
 	
 	options noimplicit, explterm;
 	uses "mmxprs";
+	uses "zlib";
 	
 	parameters
-		INSTANCE     = "..\\..\\data\\TU_C50\\instance.split4";
-		INSTANCEFILE = INSTANCE + ".time.txt";
-		OUTFILE      = INSTANCE + ".time.xpress.txt";
+		BASENAME		= "..\\..\\data\\";
+		INSTANCE		= "TU_C50\\instance_small.split4";
+		INSTANCEFILE	= "zlib.gzip:" + BASENAME + INSTANCE + ".time.txt.gz";
+		OUTFILE			= "zlib.gzip:" + BASENAME + INSTANCE + ".time.xpress.txt.gz";
+		CV				= -1;
 	end-parameters
 	
-	setparam("XPRS_verbose", true);
+	!setparam("XPRS_verbose", true);
 	setparam("XPRS_heurstrategy", 0);
 	setparam("XPRS_presolve", 0);
 	
@@ -136,7 +139,7 @@ model "model"
 		FMIN: array(TOTAL_TRIPS) of real;
 		FMAX: array(TOTAL_TRIPS) of real;
 		
-		CV: real;
+		VEHICLE_COST: real;
 		CT: array(TOTAL_NODES_TP) of real;
 		CE: array(TOTAL_NODES, TOTAL_NODES_TP) of real;
 		CD: array(TOTAL_NODES, TOTAL_NODES_TP) of real;
@@ -158,12 +161,16 @@ model "model"
 		FMIN as 'Fmin';
 		FMAX as 'Fmax';
 		
-		CV as 'Vehicle_Cost';
+		VEHICLE_COST as 'Vehicle_Cost';
 		CT;
 		CE;
 		CD;
 		CR;
 	end-initializations
+	
+	if not CV = -1 then
+		VEHICLE_COST := CV;
+	end-if
 	
 	forall(v in TOTAL_NODES) finalize(TOTAL_NIN(v));
 	forall(v in TOTAL_NODES) finalize(TOTAL_NOUT(v));
@@ -285,7 +292,7 @@ model "model"
 	TripCost		:= sum(t in TOTAL_TRIPS, s in NIN(t)) (sol_x(s, t) * CT(t));
 	DeadheadCost	:= sum(t in TOTAL_NODES_TP, s in NIN(t) - union(i in INDICES) {DS(i)}) (sol_x(s, t) * CE(s, t) + sol_z(s, t) * CD(s, t));
 	RouteCost		:= sum(m in TOTAL_ROUTES) sol_u(m) * CR(m);
-	TotalCost		:= CarNumber * CV + TripCost + DeadheadCost;
+	TotalCost		:= CarNumber * VEHICLE_COST + TripCost + DeadheadCost;
 	TripNumber		:= sum(t in TOTAL_TRIPS, s in NIN(t)) sol_x(s, t);
 	
 	writeln("Total Cost: ", TotalCost);
@@ -355,7 +362,7 @@ model "model"
 			TripCost 		:= sum(t in NODES(index), s in NIN(t)) (x(s, t) * CT(t));
 			DeadheadCost 	:= sum(t in NODES(index), s in NIN(t)-{DS(index)}) (x(s, t) * CE(s, t) + z(s, t) * CD(s, t));
 			RouteCost		:= sum(m in ROUTES(index)) u(m) * CR_mod(m);
-			TotalCost 		:= CarNumber * CV + TripCost + DeadheadCost + RouteCost;
+			TotalCost 		:= CarNumber * VEHICLE_COST + TripCost + DeadheadCost + RouteCost;
 			TripNumber 		:= sum(t in TRIPS(index), s in NIN(t)) x(s, t);
 			FuelSum			:= sum(t in NODES(index)) e(t);
 				
@@ -481,7 +488,7 @@ model "model"
 			TripCost 		:= sum(t in NODES_TP_1, s in NIN(t)) (x(s, t) * CT(t));
 			DeadheadCost 	:= sum(t in NODES_TP_1, s in NIN(t)) (x(s, t) * CE(s, t) + z(s, t) * CD(s, t));
 			RouteCost		:= sum(m in ROUTES(index)) u(m) * CR_mod(m);
-			TotalCost 		:= CarNumber * CV + TripCost + DeadheadCost + RouteCost;
+			TotalCost 		:= CarNumber * VEHICLE_COST + TripCost + DeadheadCost + RouteCost;
 			TripNumber 		:= sum(t in TRIPS(index), s in NIN(t)) x(s, t);
 			FuelSum			:= sum(t in NODES(index)) e(t);
 				
@@ -606,6 +613,7 @@ model "model"
 			v := getfirst(duty);
 			ep := getlast(duty);
 			if ep in VEHICLES then
+				TOTAL_DUTIES(v) := [];
 				next;
 			end-if
 			cuthead(duty, 1);

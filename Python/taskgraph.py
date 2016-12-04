@@ -306,9 +306,14 @@ def save_taskgraph_to_json(G, filename, compress=None):
     with (gzip.open(filename, 'wb') if compress else open(filename, 'w')) as f:
         json.dump(dictionary,f)
 
-def load_taskgraph_from_json(filename, dictionary):
+def load_taskgraph_from_json(filename, dictionary, compress=None):
     
-    with open(filename) as f:
+    if compress is None:
+        compress = os.path.splitext(filename)[1] == '.gz'
+    if compress and not os.path.splitext(filename)[1] == '.gz':
+        filename += '.gz'
+    
+    with (gzip.open(filename, 'rb') if compress else open(filename, 'r')) as f:
         data = json.load(f)
         
     ds = data['attributes']['ds']

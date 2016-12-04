@@ -1,7 +1,6 @@
 from argparse import ArgumentParser
 from datetime import timedelta
 import random
-import os
 
 import storage
 import taskgraph
@@ -54,7 +53,7 @@ if __name__ == '__main__':
     
     if instance._time is None or instance._dist is None:
         extendedvertices = instance.extendedvertices
-        print 'Get %d x %d matrix ...' %(len(extendedvertices), len(extendedvertices))
+        print 'Getting %d x %d matrix ...' %(len(extendedvertices), len(extendedvertices))
         with osrm.osrm_parallel() as router:
             instance._time, instance._dist = router.matrix(extendedvertices, extendedvertices)
         print 'Matrix successfully loaded'
@@ -67,7 +66,7 @@ if __name__ == '__main__':
     if args.export:
         filename = '%s.json%s' % (basename, compress)
         print 'Saving instance ...'
-        storage.save_instance_to_json(filename, instance, compress=None)
+        storage.save_instance_to_json(filename, instance)
         print 'Instance successfully saved to %s' % filename
             
     if args.graph:

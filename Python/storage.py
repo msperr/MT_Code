@@ -31,6 +31,8 @@ def load_instance_from_json(filename, compress=None):
     
     if compress is None:
         compress = os.path.splitext(filename)[1] == '.gz'
+    if compress and not os.path.splitext(filename)[1] == '.gz':
+        filename += '.gz'
     
     with (gzip.open(filename, 'rb') if compress else open(filename, 'r')) as f:
         data = json.load(f)

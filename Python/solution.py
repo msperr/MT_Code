@@ -5,11 +5,13 @@ import gzip
 from enum import Enum
 
 import progressbar
+
 import osrm
 import xpress
 import storage
 from util import accumulate
-from config import config   
+from config import config 
+import entities  
 
 class VehicleState(Enum):
     waiting = 0
@@ -37,16 +39,27 @@ class Solution:
             })
 
     def assertValid(self, v=None):
-
+        
         if not v:
-            assert set(self.instance.vehicles) == set(self.duties.iterkeys()), 'Vehicle sets not equal'
+            assert set(self.instance.vehicles) == set(self.duties.iterkeys()), '[WARN] Vehicle sets do not coincide'
 
-            coveredtrips = set(t for duty in self.duties.itervalues() for t, _ in duty)
-            for customer, trips in self.instance._customers.iteritems():
-                assert len(coveredtrips & set(trips)) == 1, 'Customer cover for {0} not satisfied'.format(customer)
+            coveredtrips = set(t for duty in self.duties.itervalues() for t in duty if isinstance(t, entities.Trip))
+            coveredroutes = set(self.instance.route(t) for t in coveredtrips)
+            for route in coveredroutes:
+                assert set(self.instance._routes.get(route)) <= coveredtrips , '[WARN] Route %d is not satisfied' % route
+            for customer, routes in self.instance._customers.iteritems():
+                assert len(coveredroutes & set(routes)) == 1, '[WARN] Customer %d is not satisfied' % customer
 
         for s, duty in ((v, self.duties[v]),) if v else self.duties.iteritems():
+            # e = s.fuel?
             e = self.instance.initialfuel(s)
+            for t in duty:
+                assert e >= 0, '[WARN] Fuel for driving to %s is not sufficient' % s
+                
+                assert(t.start_time - s.finish_time).total_seconds() >= self.instance.time(s, t), '[WARN] Not enough time for driving from %s to %s' % (s, t)
+                e -= 
+            
+            
             for t, r in duty:
                 assert e >= 0, 'Not enough fuel to travel to {0}'.format(s)
                 if r:
@@ -62,50 +75,43 @@ class Solution:
             assert e >= 0, 'Not enough fuel to travel to {0}'.format(s)
 
     def evaluate(self, v=None):
-
+        
         cost = 0.0
-
+        
         for s, duty in ((v, self.duties[v]),) if v else self.duties.iteritems():
-            for t, r in duty:
-                if r:
-                    cost += self.instance.cost(s, r) + self.instance.cost(r, t)
-                else:
-                    cost += self.instance.cost(s, t)
-                cost += self.instance.cost(t)
+            for t in duty:
+                cost += self.instance.cost(s, t)
+                if isinstance(t, entities.Trip):
+                    cost += self.instance.cost(t)
                 s = t
-
+                
         return cost
 
     def evaluate_detailed(self, v=None):
-
+        
         cost = 0.0
         dist = 0.0
         time = 0.0
-        used = 0
+        used_vehicles = 0
         dist_customer = 0.0
         dist_deadhead = 0.0
-
+        
         for s, duty in ((v, self.duties[v]),) if v else self.duties.iteritems():
             if duty:
-                used += 1
-            for t, r in duty:
-                if r:
-                    cost += self.instance.cost(s, r) + self.instance.cost(r, t)
-                    dist += self.instance.dist(s, r) + self.instance.dist(r, t)
-                    dist_deadhead += self.instance.dist(s, r) + self.instance.dist(r, t)
-                    time += self.instance.time(s, r) + self.instance.time(r, t)
-                else:
-                    cost += self.instance.cost(s, t)
-                    dist += self.instance.dist(s, t)
-                    dist_deadhead += self.instance.dist(s, t)
-                    time += self.instance.time(s, t)
-                cost += self.instance.cost(t)
-                dist += t.distance * 1000.0
-                dist_customer += t.distance * 1000.0
-                time += t.duration.total_seconds()
+                used_vehicles += 1
+            for t in duty:
+                cost += self.instance.cost(s, t)
+                dist += self.instance.dist(s, t)
+                dist_deadhead += self.instance.dist(s, t)
+                time += self.instance.time(s, t)
+                if isinstance(t, entities.Trip):
+                    cost += self.instance.cost(t)
+                    dist += t.distance
+                    dist_customer += t.distance
+                    time += t.duration.total_seconds()
                 s = t
-
-        return cost, dist, time, used, dist_customer, dist_deadhead
+                
+        return cost, dist, time, used_vehicles, dist_customer, dist_deadhead
 
     def keyframes(self):
 
@@ -156,11 +162,21 @@ class Solution:
 
         return routes
     
-def import_solution(filename, instancefile = None, instance = None):
+def import_solution(filename, instance=None, compress=None):
 
     if instance is None:
-        instance = storage.load_instance_from_json(instancefile)
-        print 'Successfully loaded instance from %s' % instancefile
+        instancefile = os.path.join(os.path.dirname(filename), os.path.basename(filename).split('.')[0])
+        print 'Instancefile', instancefile
+        if os.path.isfile(instancefile + '.json.gz'):
+            instancefile += '.json.gz'
+            instance = storage.load_instance_from_json(instancefile)
+            print 'Successfully loaded instance from %s' % instancefile
+        elif os.path.isfile(instancefile + '.json'):
+            instancefile += '.json'
+            instance = storage.load_instance_from_json(instancefile)
+            print 'Successfully loaded instance from %s' % instancefile
+        
+    assert not instance is None
             
     parser_vehicles = xpress.parser_object(instance.vehicles)
     parser_trips = xpress.parser_object(instance.trips + instance.refuelpoints, **{'': None})
@@ -168,12 +184,29 @@ def import_solution(filename, instancefile = None, instance = None):
     parser_solution = xpress.parser_definitions({
         'Duties': xpress.parser_dict((parser_vehicles,), xpress.parser_list(parser_trips))
     })
+    
+    if compress is None:
+        compress = os.path.splitext(filename)[1] == '.gz'
+    if compress and not os.path.splitext(filename)[1] == '.gz':
+        filename += '.gz'
 
-    with open(filename) as f:
+    with (gzip.open(filename, 'rb') if compress else open(filename, 'r')) as f:
         data = f.read()
-            
+    
+    print 'Loading solution ...'
+    
     progress = progressbar.ProgressBar(maxval=len(data), widgets=[progressbar.Bar('#', '[', ']'), ' ', progressbar.Percentage(), ' ', progressbar.Timer(), ' ', progressbar.ETA()], term_width=config['console']['width']).start()
     solution = parser_solution.parse(data, progress)
     progress.finish()
+    
+    print 'Successfully loaded solution from %s' % filename
         
     return Solution(instance, solution['Duties'])
+
+if __name__ == '__main__':
+    filename = config['data']['base'] + r'TU_C50\instance_small.split4.time.xpress.txt.gz'
+    solution = import_solution(filename)
+    print solution.duties
+    print solution.evaluate()
+    cost, dist, time, used_vehicles, dist_customer, dist_deadhead = solution.evaluate_detailed()
+    print 'Cost', cost, 'Distance', dist, 'Time', timedelta(seconds=time), 'Vehicles Used', used_vehicles, 'Customer Distance', dist_customer, 'Deadhead Distance', dist_deadhead

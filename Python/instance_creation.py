@@ -1,5 +1,6 @@
 from argparse import ArgumentParser
 from datetime import datetime, timedelta
+import os
 import random
 from itertools import count
 
@@ -18,9 +19,12 @@ if __name__ == '__main__':
     parser.add_argument('-o', type=str, dest='fileoutput')
     parser.add_argument('-c', type=int, dest='customer_number')
     parser.add_argument('-v', type=int, dest='vehicle_number')
+    parser.add_argument('--compress', action='store_true')
     parser.add_argument('--unit', action='store_true')
     parser.add_argument('--statistics', action='store_true')
     args = parser.parse_args()
+    
+    compress = '.gz' if args.compress else ''
     
     print '[INFO] Process started'
     
@@ -33,6 +37,15 @@ if __name__ == '__main__':
     instance_finish = instance_start + timedelta(days=1)
     
     filename = config['data']['base'] + (args.instance if args.instance else config['data']['instance'])
+    
+    if args.fileoutput:
+        basename = config['data']['base'] + args.fileoutput
+    else:
+        basename = config['data']['base'] + 'T' + ('U' if args.unit else '') + ('_' if args.vehicle_number or args.customer_number else '') + ('V%d' % args.vehicle_number if args.vehicle_number else '') + ('C%d' % args.customer_number if args.customer_number else '') + r'\instance'
+    
+    if not os.path.exists(os.path.dirname(basename)):
+        os.makedirs(os.path.dirname(basename))
+    
     instance = storage.load_instance_from_json(filename)
     print 'Instance successfully loaded from %s' % filename
     
@@ -121,8 +134,6 @@ if __name__ == '__main__':
     progress.finish()
     
     new_instance = Instance(vehicles, customers, routes, routecost, instance._refuelpoints, instance._fuelpermeter, instance._refuelpersecond, instance._costpermeter, instance._costpercar)
-    
-    basename = config['data']['base'] + (args.fileoutput if args.fileoutput else args.instance.split('.json')[0])
     new_instance._basename = basename
     
     print 'New instance created'
@@ -132,7 +143,7 @@ if __name__ == '__main__':
         print 'Vehicles: %d, Customers: %d, Routes: %d, Trips: %d, Refuelpoints: %d' % (len(new_instance.vehicles), len(new_instance._customers), len(new_instance._routes), len(new_instance._trips), len(new_instance._refuelpoints))
         print 'Start: %s, Finish: %s' % (new_instance.starttime.strftime('%Y-%m-%d %H:%M:%S'), new_instance.finishtime.strftime('%Y-%m-%d %H:%M:%S'))
     
-    filename = '%s.json' % basename
+    filename = '%s.json%s' % (basename, compress)
     storage.save_instance_to_json(filename, new_instance)
     print 'Successfully saved instance to %s' % filename
     

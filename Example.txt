@@ -1,0 +1,8 @@
+cd Python
+instance_creation.py -v 100 -c 500 --compress --statistics
+data.py -i T_V100C500\instance.json.gz -l 4 --compress --export --customer --time --statistics
+data.py -i T_V100C500\instance.json.gz -g T_V100C500\instance.graph.json.gz -l 12 --compress --export --customer --time --statistics
+cd ..\Mosel
+mosel CMILP.mos INSTANCE="T_V100C500\instance.split4",mmxprs.XPRS_verbose=true,CV=100000
+mosel TMILP.mos INSTANCE="T_V100C500\instance.split4",mmxprs.XPRS_verbose=true,CV=100000
+cd ..\Python
