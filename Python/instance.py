@@ -27,7 +27,7 @@ class Instance:
     _paretorefuelpoints = None
     _initialfuel = None
 
-    def __init__(self, vehicles, customers, routes, refuelpoints, fuelpermeter, refuelpersecond, costpermeter, costpercar):
+    def __init__(self, vehicles, customers, routes, routecost, refuelpoints, fuelpermeter, refuelpersecond, costpermeter, costpercar):
 
         self._fuelpermeter = fuelpermeter
         self._refuelpersecond = refuelpersecond
@@ -37,6 +37,7 @@ class Instance:
         self._vehicles = list(vehicles)
         self._customers = OrderedDict(customers)
         self._routes = OrderedDict(routes)
+        self._routecost = OrderedDict(routecost)
         
         self._customertrips = OrderedDict((customer, [trip for route in routes for trip in self._routes.get(route)]) for (customer, routes) in self._customers.iteritems())
         
@@ -68,7 +69,7 @@ class Instance:
     
     @property
     def extendedvertices(self):
-        return self._vehicles + self._trips + self._refuelpoints
+        return self.vehicles + self.trips + self.refuelpoints
     
     @property
     def maxrange(self):
@@ -84,10 +85,7 @@ class Instance:
     
     @property
     def dictionary(self):
-        dictionary = entities.get_dict(self.refuelpoints)
-        dictionary.update(entities.get_dict(self.vehicles))
-        dictionary.update(entities.get_dict(self.trips))
-        return dictionary
+        return entities.get_dict(self.extendedvertices)
     
     def customer(self, t):
         return self._customertable[self._index[t]];
@@ -97,6 +95,9 @@ class Instance:
     
     def customer_starttime(self, t):
         return min(map((lambda t: t.start_time), self._customertrips.get(self.customer(t))))
+    
+    def latest_starttime(self, c):
+        return max(map(lambda k: k.start_time, self._customertrips.get(c)))
     
     def time(self, s, t):
         return self._time[self._index[s], self._index[t]]
@@ -119,13 +120,13 @@ class Instance:
         return self._initialfuel[self._index[s]]
     
     def subinstance(self, vehicles=None, customers=None, refuelpoints=None):
-        #customers = OrderedDict((customer, self._customers.get(customer)) for customer in )
         vehicles = list(self._vehicles if vehicles is None else vehicles)
         customers = OrderedDict((customer, self._customers.get(customer)) for customer in (self._customers.iterkeys() if customers is None else customers))
         routes = OrderedDict((route, self._routes.get(route)) for routes in customers.itervalues() for route in routes)
         refuelpoints = list(self._refuelpoints if refuelpoints is None else refuelpoints)
+        routecost = OrderedDict((route, self._routecost.get(route)) for route in routes)
 
-        subinst = Instance(vehicles, customers, routes, refuelpoints, self._fuelpermeter, self._refuelpersecond, self._costpermeter, self._costpercar)
+        subinst = Instance(vehicles, customers, routes, routecost, refuelpoints, self._fuelpermeter, self._refuelpersecond, self._costpermeter, self._costpercar)
         
         indices = numpy.fromiter((self._index[v] for v in subinst.vertices), dtype=numpy.int)
         extindices = numpy.fromiter((self._index[v] for v in subinst.extendedvertices), dtype=numpy.int)

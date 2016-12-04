@@ -1,4 +1,5 @@
 import os
+import gzip
 import json
 from datetime import datetime, timedelta
 from collections import OrderedDict
@@ -26,13 +27,17 @@ def save_refuelpoints_to_json(refuelpoints, filename):
     with open(filename,'w') as f:
         json.dump({'refuelpoints': [refuelpoint.__json__() for refuelpoint in refuelpoints]}, f, sort_keys=True)
         
-def load_instance_from_json(filename):
+def load_instance_from_json(filename, compress=None):
     
-    with open(filename) as f:
+    if compress is None:
+        compress = os.path.splitext(filename)[1] == '.gz'
+    
+    with (gzip.open(filename, 'rb') if compress else open(filename, 'r')) as f:
         data = json.load(f)
     
     customers = OrderedDict((customer['id'], [route['id'] for route in customer['routes']]) for customer in data['customers'])
     routes = OrderedDict((route['id'], [entities.Trip.parse(trip) for trip in route['trips']]) for customer in data['customers'] for route in customer['routes'])
+    routecost = OrderedDict((route['id'], route['cost']) for customer in data['customers'] for route in customer['routes'])
     vehicles = [entities.Vehicle.parse(vehicle) for vehicle in data['vehicles']]
     refuelpoints = [entities.RefuelPoint.parse(refuelpoint) for refuelpoint in data['refuelpoints']]
     
@@ -41,7 +46,7 @@ def load_instance_from_json(filename):
     costpermeter = data['costpermeter']
     costpercar = data['costpercar']
     
-    inst = Instance(vehicles, customers, routes, refuelpoints, fuelpermeter, refuelpersecond, costpermeter, costpercar)
+    inst = Instance(vehicles, customers, routes, routecost, refuelpoints, fuelpermeter, refuelpersecond, costpermeter, costpercar)
     
     basename, _ = os.path.splitext(filename)
     inst._basename = basename
@@ -52,16 +57,10 @@ def load_instance_from_json(filename):
     if 'dist' in data:
         inst._dist = numpy.array(data['dist'], dtype = float)
     
-    if 'paretorefuelpoints' in data:
-        inst._paretorefuelpoints = data['paretorefuelpoints']
-    
-    if 'initialfuel' in data:
-        inst._initialfuel = numpy.array(data['initialfuel'], dtype = float)
-    
     return inst
 
-def save_instance_to_json(filename, instance):
-    
+def save_instance_to_json(filename, instance, compress=None):
+
     data = {
             'fuelpermeter': instance._fuelpermeter,
             'refuelpersecond': instance._refuelpersecond,
@@ -73,6 +72,7 @@ def save_instance_to_json(filename, instance):
                 'id': customer,
                 'routes': [{
                     'id': route,
+                    'cost': instance._routecost.get(route),
                     'trips': [trip.__json__() for trip in instance._routes.get(route)]
                     } for route in routes]
             } for customer, routes in instance._customers.iteritems()]
@@ -82,12 +82,13 @@ def save_instance_to_json(filename, instance):
         data['time'] = instance._time.tolist()
     if not instance._dist is None:
         data['dist'] = instance._dist.tolist()
-    if not instance._paretorefuelpoints is None:
-        data['paretorefuelpoints'] = instance._paretorefuelpoints
-    if not instance._initialfuel is None:
-        data['initialfuel'] = instance._initialfuel.tolist()
+        
+    if compress is None:
+        compress = os.path.splitext(filename)[1] == '.gz'
+    if compress and not os.path.splitext(filename)[1] == '.gz':
+        filename += '.gz'
     
-    with open(filename, 'w') as f:
+    with (gzip.open(filename, 'wb') if compress else open(filename, 'w')) as f:
         json.dump(data, f, sort_keys=True)
 
 ###############################################################################
@@ -194,6 +195,7 @@ def load_instance_from_json_customer(filename):
     route_index = max(tmp_customers.keys())
     customers = {}
     routes = {}
+    routecost = {}
     
     for (index, trips) in tmp_customers.iteritems():
         for trip in trips:
@@ -201,6 +203,7 @@ def load_instance_from_json_customer(filename):
             result = customers.get(index) + [route_index] if (index in customers.keys()) else [route_index]
             customers.update(dict([(index, result)]))
             routes.update(dict([(route_index, [trip])]))
+            routecost.update(dict([(route_index, trip.duration.total_seconds())]))
     
     vehicles = [ entities.Vehicle(
         vehicle_id=vehicle['id'],
@@ -221,7 +224,7 @@ def load_instance_from_json_customer(filename):
     costpermeter = data['costpermeter']
     costpercar = data['costpercar']
     
-    inst = Instance(vehicles, customers, routes, refuelpoints, fuelpermeter, refuelpersecond, costpermeter, costpercar)
+    inst = Instance(vehicles, customers, routes, routecost, refuelpoints, fuelpermeter, refuelpersecond, costpermeter, costpercar)
     
     basename, _ = os.path.splitext(filename)
     inst._basename = basename
@@ -231,11 +234,5 @@ def load_instance_from_json_customer(filename):
     
     if 'dist' in data:
         inst._dist = numpy.array(data['dist'], dtype = float)
-    
-    if 'paretorefuelpoints' in data:
-        inst._paretorefuelpoints = data['paretorefuelpoints']
-    
-    if 'initialfuel' in data:
-        inst._initialfuel = numpy.array(data['initialfuel'], dtype = float)
     
     return inst

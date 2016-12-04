@@ -18,12 +18,13 @@ if __name__ == '__main__':
     parser.add_argument('-o', type=str, dest='fileoutput')
     parser.add_argument('-c', type=int, dest='customer_number')
     parser.add_argument('-v', type=int, dest='vehicle_number')
+    parser.add_argument('--unit', action='store_true')
     parser.add_argument('--statistics', action='store_true')
     args = parser.parse_args()
     
     print '[INFO] Process started'
     
-    frequency = [0.1, 0.1, 0.15, 0.2, 0.4, 0.65, 0.55, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 1, 1, 1, 0.8, 0.55, 0.45, 0.35, 0.2, 0.15, 0.1]
+    frequency = [1]*24 if args.unit else [0.1, 0.1, 0.15, 0.2, 0.4, 0.65, 0.55, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 1, 1, 1, 0.8, 0.55, 0.45, 0.35, 0.2, 0.15, 0.1]
     
     time_step = timedelta(seconds=3600)
     trip_start = datetime(2015, 10, 01, 19)
@@ -78,6 +79,7 @@ if __name__ == '__main__':
     otp = Otp()
     customers = {}
     routes = {}
+    routecost = {}
     customer_index = 0
     route_index = len(prop_customers)
     trip_index = 0
@@ -108,6 +110,8 @@ if __name__ == '__main__':
             ) for (leg_count, leg) in enumerate([leg for leg in route['legs'] if leg['mode'] == 'CAR'])]
             trip_index += len(route_trips)
             routes.update(dict([(route_index, route_trips)]))
+            cost = route['duration']
+            routecost.update(dict([(route_index, cost)]))
             customer_routes.append(route_index)
             route_index += 1
         customers.update(dict([(customer_index, customer_routes)]))
@@ -116,7 +120,7 @@ if __name__ == '__main__':
     
     progress.finish()
     
-    new_instance = Instance(vehicles, customers, routes, instance._refuelpoints, instance._fuelpermeter, instance._refuelpersecond, instance._costpermeter, instance._costpercar)
+    new_instance = Instance(vehicles, customers, routes, routecost, instance._refuelpoints, instance._fuelpermeter, instance._refuelpersecond, instance._costpermeter, instance._costpercar)
     
     basename = config['data']['base'] + (args.fileoutput if args.fileoutput else args.instance.split('.json')[0])
     new_instance._basename = basename

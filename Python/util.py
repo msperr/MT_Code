@@ -26,4 +26,12 @@ def timelist(start_time, finish_time, time_step=0, length=0):
 
 def to_datetime(n):
     min_date = datetime(1970, 1, 1)
-    return min_date + timedelta(milliseconds = n) 
+    return min_date + timedelta(milliseconds = n)
+
+def accumulate(iterable):
+    it = iter(iterable)
+    total = next(it)
+    yield total
+    for element in it:
+        total = total + element
+        yield total

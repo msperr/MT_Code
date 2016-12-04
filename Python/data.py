@@ -1,6 +1,7 @@
 from argparse import ArgumentParser
 from datetime import timedelta
 import random
+import os
 
 import storage
 import taskgraph
@@ -16,17 +17,32 @@ if __name__ == '__main__':
     parser.add_argument('-l', type=int, dest='splitlength')
     parser.add_argument('-o', type=str, dest='fileoutput')
     parser.add_argument('-r', type=int, dest='restriction')
+    parser.add_argument('--compress', action='store_true')
     parser.add_argument('--export', action='store_true')
+    parser.add_argument('--customer', action='store_true')
+    parser.add_argument('--time', action='store_true')
     parser.add_argument('--statistics', action='store_true')
     args = parser.parse_args()
+    
+    compress = '.gz' if args.compress else ''
    
     print '[INFO] Process started'
     
-    filename = config['data']['base'] + (args.instance if args.instance else config['data']['instance'])
-    instance = storage.load_instance_from_json(filename)
-    print 'Instance successfully loaded from %s' % filename
+    #Warnings
+    if args.export and not (args.instance or args.fileoutput):
+        print '[WARN] Base instance will be overwritten'
+    if args.fileoutput and not args.export:
+        print '[WARN] Results will not be saved'
+    if (args.customer or args.time) and not args.splitlength:
+        print '[WARN] No splitpoints available'
+    if args.splitlength and not (args.customer or args.time):
+        print '[WARN] Splitting type is not specified'
     
-    basename = config['data']['base'] + (args.fileoutput if args.fileoutput else args.instance.split('.json')[0])
+    filename = config['data']['base'] + (args.instance if args.instance else config['data']['instance'])
+    basename = (config['data']['base'] + args.fileoutput) if args.fileoutput else filename.split('.json')[0]
+    instance = storage.load_instance_from_json(filename)
+    #instance = storage.load_instance_from_json_customer(filename)
+    print 'Instance successfully loaded from %s' % filename
     
     if args.restriction:
         subsets = {}
@@ -49,19 +65,10 @@ if __name__ == '__main__':
         print 'Start: %s, Finish: %s' % (instance.starttime.strftime('%Y-%m-%d %H:%M:%S'), instance.finishtime.strftime('%Y-%m-%d %H:%M:%S'))
 
     if args.export:
-        filename = '%s.json' % basename
-        storage.save_instance_to_json(filename, instance)
+        filename = '%s.json%s' % (basename, compress)
+        print 'Saving instance ...'
+        storage.save_instance_to_json(filename, instance, compress=None)
         print 'Instance successfully saved to %s' % filename
-    
-    split = []  
-    if args.splitlength:
-        startsplit = instance.starttime
-        endsplit = instance.starttime + timedelta(days=1)
-        split = util.timelist(startsplit, endsplit, length = args.splitlength)
-        split.remove(startsplit)
-        
-        if args.statistics:
-            print 'Splittings:', map(lambda k: k.strftime('%H:%M:%S'), split)
             
     if args.graph:
         filename = config['data']['base'] + args.graph
@@ -80,16 +87,28 @@ if __name__ == '__main__':
             print 'Nodes: %d, Edges: %d' % (len(G.nodes()), len(G.edges()))
     
         if args.export:
-            xpressfile = '%s.txt' % basename
-            taskgraph.save_taskgraph_to_xpress(instance, G, xpressfile)
+            xpressfile = '%s.txt%s' % (basename, compress)
+            print 'Exporting task graph ...'
+            taskgraph.save_taskgraph_to_xpress(xpressfile, instance, G)
             print 'Task graph successfully exported to %s' % xpressfile
-            filename = '%s.graph.json' % basename
+            filename = '%s.graph.json%s' % (basename, compress)
+            print 'Saving task graph ...'
             taskgraph.save_taskgraph_to_json(G, filename)
             print 'Task graph successfully saved to %s' % filename
+
+    split = []  
+    if args.splitlength:
+        startsplit = instance.starttime
+        endsplit = instance.starttime + timedelta(days=1)
+        split = util.timelist(startsplit, endsplit, length = args.splitlength)
+        split.remove(startsplit)
         
-    if split:
-        print 'Splitting task graph ...'
-        G, splitpoint_list, trip_list, customer_list = taskgraph.split_taskgraph(instance, G, split)
+        if args.statistics:
+            print 'Splittings:', map(lambda k: k.strftime('%H:%M:%S'), split)
+    
+    if args.customer and split:
+        print 'Splitting task graph according to customers ...'
+        G, splitpoint_list, trip_list, customer_list = taskgraph.split_taskgraph_customer(instance, G, split)
         splitpoints = [splitpoint for tmp_list in splitpoint_list for splitpoint in tmp_list]
         
         if args.statistics:
@@ -99,11 +118,34 @@ if __name__ == '__main__':
             print '%2d. Time: %s, Number of Customers: %2d, Number of Trips: %3d, Number of Splitpoints: %3d' % (len(split)+1, endsplit, len(customer_list[-1]), len(trip_list[-1]), len(splitpoint_list[-1]))
         
         if args.export:
-            xpressfile = '%s.split%d.txt' % (basename, len(split)+1)
-            taskgraph.save_split_taskgraph_to_xpress(instance, G, splitpoint_list, trip_list, customer_list, xpressfile)
+            xpressfile = '%s.split%d.customer.txt%s' % (basename, len(split)+1, compress)
+            print 'Exporting split task graph ...'
+            taskgraph.save_split_taskgraph_to_xpress(xpressfile, instance, G, splitpoint_list, trip_list, customer_list)
             print 'Split task graph successfully exported to %s' % xpressfile
-            filename = '%s.split%d.graph.json' % (basename, len(split)+1)
+            filename = '%s.split%d.customer.graph.json%s' % (basename, len(split)+1, compress)
+            print 'Saving split task graph ...'
             taskgraph.save_taskgraph_to_json(G, filename)
             print 'Split task graph successfully saved to %s' % filename
-    
+            
+    if args.time and split:
+        print 'Splitting task graph according to time ...'
+        G, splitpoint_list, trip_list, customer_list, route_list = taskgraph.split_taskgraph_time(instance, G, split)
+        splitpoints = [splitpoint for tmp_list in splitpoint_list for splitpoint in tmp_list]
+        
+        if args.statistics:
+            print 'Splitpoints: %d' % len(splitpoints)
+            for (index, timepoint) in enumerate(split):
+                print '%2d. Time: %s, Number of Customers: %2d, Number of Trips: %3d, Number of Splitpoints: %3d' % (index+1, timepoint, len(customer_list[index]), len(trip_list[index]), len(splitpoint_list[index]))
+            print '%2d. Time: %s, Number of Customers: %2d, Number of Trips: %3d, Number of Splitpoints: %3d' % (len(split)+1, endsplit, len(customer_list[-1]), len(trip_list[-1]), len(splitpoint_list[-1]))
+        
+        if args.export:
+            xpressfile = '%s.split%d.time.txt%s' % (basename, len(split)+1, compress)
+            print 'Exporting split task graph ...'
+            taskgraph.save_split_taskgraph_to_xpress(xpressfile, instance, G, splitpoint_list, trip_list, customer_list, route_list=route_list)
+            print 'Split task graph successfully exported to %s' % xpressfile
+            filename = '%s.split%d.time.graph.json%s' % (basename, len(split)+1, compress)
+            print 'Saving split task graph ...'
+            taskgraph.save_taskgraph_to_json(G, filename)
+            print 'Split task graph successfully saved to %s' % filename
+
     print '[INFO] Process finished'

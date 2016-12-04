@@ -192,7 +192,6 @@ class Vehicle:
             'fuel': self.fuel
         }
 
-#class RefuelPoint(Point):
 class RefuelPoint:
     
     id = None
@@ -203,7 +202,6 @@ class RefuelPoint:
         self.location = location if location else Point(longitude, latitude)
 
     def __key__(self):
-        #return (self.id, self.lon, self.lat)
         return (self.id, self.location)
 
     def __hash__(self):

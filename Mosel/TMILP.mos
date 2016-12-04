@@ -5,11 +5,11 @@ model "model"
 	
 	parameters
 		INSTANCE     = "..\\..\\data\\TU_C50\\instance.split4";
-		INSTANCEFILE = INSTANCE + ".customer.txt";
-		OUTFILE      = INSTANCE + ".customer.xpress.txt";
+		INSTANCEFILE = INSTANCE + ".time.txt";
+		OUTFILE      = INSTANCE + ".time.xpress.txt";
 	end-parameters
 	
-	setparam("XPRS_verbose", false);
+	setparam("XPRS_verbose", true);
 	setparam("XPRS_heurstrategy", 0);
 	setparam("XPRS_presolve", 0);
 	
@@ -101,15 +101,19 @@ model "model"
 	declarations
 		ROUTE_TRIPS: array(TOTAL_ROUTES) of set of string;
 		ROUTES: array(INDICES) of set of integer;
+		FIXED_ROUTES: array(INDICES) of set of integer;
 	end-declarations
 	
 	initializations from INSTANCEFILE
 		ROUTE_TRIPS as 'Routes';
+		FIXED_ROUTES as 'Partial_Routes';
 	end-initializations
 	
-	forall(route in TOTAL_ROUTES) finalize(ROUTE_TRIPS(route));
 	forall(index in INDICES) ROUTES(index) := union(customer in CUSTOMERS(index)) CUSTOMER_ROUTES(customer);
+	
 	forall(index in INDICES) finalize(ROUTES(index));
+	forall(route in TOTAL_ROUTES) finalize(ROUTE_TRIPS(route));
+	forall(index in INDICES) finalize(FIXED_ROUTES(index));
 	
 	writeln("Customers: ", getsize(TOTAL_CUSTOMERS));
 	writeln("Vehicles: ", getsize(VEHICLES));
@@ -137,6 +141,7 @@ model "model"
 		CE: array(TOTAL_NODES, TOTAL_NODES_TP) of real;
 		CD: array(TOTAL_NODES, TOTAL_NODES_TP) of real;
 		CR: array(TOTAL_ROUTES) of real;
+		CR_mod: array(TOTAL_ROUTES) of real;
 	end-declarations
 
 	initializations from INSTANCEFILE
@@ -223,15 +228,14 @@ model "model"
 		forall(v in VERTICES(index)) finalize(NIN(v));
 		forall(v in VERTICES(index)) finalize(NOUT(v));
 		
-		if(getsize(TRIPS(index)) >= 1) then
-			solve_partial_instance(index);
-			determine_duties(NODES(index));
-		else
-			DUTIES(index) := union(t in ENDPOINTS(index)) {[t]};	
-		end-if
+		forall(m in ROUTES(index)) CR_mod(m) := CR(m) + sum(t in ROUTE_TRIPS(m) - TRIPS(index)) CT(t);
+		
+		solve_partial_instance(index);
+		
+		determine_duties(NODES(index));
 		
 		determine_endpoints(DUTIES(index));
-		
+
 		index := index - 1;
 
 	end-do
@@ -262,6 +266,8 @@ model "model"
 	forall(v in VERTICES(index)) finalize(NIN(v));
 	forall(v in VERTICES(index)) finalize(NOUT(v));
 	
+	forall(m in ROUTES(index)) CR_mod(m) := CR(m) + sum(t in ROUTE_TRIPS(m) - TRIPS(index)) CT(t);
+	
 	solve_partial_instance_1(index);
 	
 	determine_duties(NODES(index));
@@ -279,7 +285,7 @@ model "model"
 	TripCost		:= sum(t in TOTAL_TRIPS, s in NIN(t)) (sol_x(s, t) * CT(t));
 	DeadheadCost	:= sum(t in TOTAL_NODES_TP, s in NIN(t) - union(i in INDICES) {DS(i)}) (sol_x(s, t) * CE(s, t) + sol_z(s, t) * CD(s, t));
 	RouteCost		:= sum(m in TOTAL_ROUTES) sol_u(m) * CR(m);
-	TotalCost		:= CarNumber * CV + TripCost + DeadheadCost + RouteCost;
+	TotalCost		:= CarNumber * CV + TripCost + DeadheadCost;
 	TripNumber		:= sum(t in TOTAL_TRIPS, s in NIN(t)) sol_x(s, t);
 	
 	writeln("Total Cost: ", TotalCost);
@@ -327,6 +333,7 @@ model "model"
 			EndpointInflow: dynamic array(TOTAL_SPLITPOINTS) of linctr;
 			Customer: array(TOTAL_CUSTOMERS) of linctr;
 			Route: array(TOTAL_TRIPS) of linctr;
+			FixedRoute: dynamic array(TOTAL_TRIPS) of linctr;
 			DominanceXZ: dynamic array(TOTAL_NODES, TOTAL_NODES) of linctr;
 			EndFuel: dynamic array(TOTAL_SPLITPOINTS) of linctr;
 			BeforeRefuel: dynamic array(TOTAL_NODES, TOTAL_NODES) of linctr;
@@ -347,7 +354,7 @@ model "model"
 			CarNumber 		:= sum(s in NODES(index)) x(DS(index), s) - sum(s in ENDPOINTS(index)) x(s, DE(index));
 			TripCost 		:= sum(t in NODES(index), s in NIN(t)) (x(s, t) * CT(t));
 			DeadheadCost 	:= sum(t in NODES(index), s in NIN(t)-{DS(index)}) (x(s, t) * CE(s, t) + z(s, t) * CD(s, t));
-			RouteCost		:= sum(m in ROUTES(index)) u(m) * CR(m);
+			RouteCost		:= sum(m in ROUTES(index)) u(m) * CR_mod(m);
 			TotalCost 		:= CarNumber * CV + TripCost + DeadheadCost + RouteCost;
 			TripNumber 		:= sum(t in TRIPS(index), s in NIN(t)) x(s, t);
 			FuelSum			:= sum(t in NODES(index)) e(t);
@@ -358,8 +365,12 @@ model "model"
 			
 			forall(t in NODES(index))							FlowConservation(t) := sum(s in NIN(t)) x(s, t) = sum(s in NOUT(t)) x(t, s);
 			forall(t in ENDPOINTS(index))						EndpointInflow(t)	:= sum(s in NIN(t)) x(s, t) = 1;
+
 			forall(c in CUSTOMERS(index))						Customer(c)			:= sum(m in CUSTOMER_ROUTES(c)) u(m) = 1;
-			forall(m in ROUTES(index), t in ROUTE_TRIPS(m))		Route(t)			:= sum(s in NIN(t)) x(s, t) = u(m);
+			forall(m in ROUTES(index), t in ROUTE_TRIPS(m) * TRIPS(index))			Route(t) 		:= sum(s in NIN(t)) x(s, t) = u(m);
+			forall(m in FIXED_ROUTES(index), t in ROUTE_TRIPS(m) * TRIPS(index))	FixedRoute(t)	:= sum(s in NIN(t)) x(s, t) = sol_u(m);
+
+			
 			forall(s in NODES(index), t in NOUT(s)-{DE(index)})	DominanceXZ(s, t)   := z(s,t) <= x(s, t);
 			forall(s in ENDPOINTS(index))						EndFuel(s)			:= F0(s) <= e(s);
 			forall(s in NODES(index), t in NOUT(s)-{DE(index)})	BeforeRefuel(s, t)  := z(s, t) * FG(s, t) <= e(s);
@@ -449,6 +460,7 @@ model "model"
 			EndpointInflow: dynamic array(TOTAL_SPLITPOINTS) of linctr;
 			Customer: array(TOTAL_CUSTOMERS) of linctr;
 			Route: array(TOTAL_TRIPS) of linctr;
+			FixedRoute: dynamic array(TOTAL_TRIPS) of linctr;
 			DominanceXZ: dynamic array(TOTAL_NODES, TOTAL_NODES) of linctr;
 			StartFuel: array(VEHICLES) of linctr;
 			EndFuel: dynamic array(TOTAL_SPLITPOINTS) of linctr;
@@ -468,7 +480,7 @@ model "model"
 			CarNumber		:= sum(s in VEHICLES, t in NOUT(s)-{DE(index)}) x(s, t) - sum(s in ENDPOINTS(index)) x(s, DE(index));
 			TripCost 		:= sum(t in NODES_TP_1, s in NIN(t)) (x(s, t) * CT(t));
 			DeadheadCost 	:= sum(t in NODES_TP_1, s in NIN(t)) (x(s, t) * CE(s, t) + z(s, t) * CD(s, t));
-			RouteCost		:= sum(m in ROUTES(index)) u(m) * CR(m);
+			RouteCost		:= sum(m in ROUTES(index)) u(m) * CR_mod(m);
 			TotalCost 		:= CarNumber * CV + TripCost + DeadheadCost + RouteCost;
 			TripNumber 		:= sum(t in TRIPS(index), s in NIN(t)) x(s, t);
 			FuelSum			:= sum(t in NODES(index)) e(t);
@@ -481,7 +493,8 @@ model "model"
 			forall(t in VEHICLES)								VehicleInflow(t)	:= sum(s in NIN(t)) x(s, t) = 1;
 			forall(t in ENDPOINTS(index))						EndpointInflow(t)	:= sum(s in NIN(t)) x(s, t) = 1;
 			forall(c in CUSTOMERS(index))						Customer(c)			:= sum(m in CUSTOMER_ROUTES(c)) u(m) = 1;
-			forall(m in ROUTES(index), t in ROUTE_TRIPS(m))		Route(t)			:= sum(s in NIN(t)) x(s, t) = u(m);
+			forall(m in ROUTES(index), t in ROUTE_TRIPS(m) * TRIPS(index))			Route(t) 		:= sum(s in NIN(t)) x(s, t) = u(m);
+			forall(m in FIXED_ROUTES(index), t in ROUTE_TRIPS(m) * TRIPS(index))	FixedRoute(t)	:= sum(s in NIN(t)) x(s, t) = sol_u(m);
 			forall(s in NODES(index), t in NOUT(s)-{DE(index)})	DominanceXZ(s, t)   := z(s,t) <= x(s, t);
 			forall(s in VEHICLES)								StartFuel(s)		:= e(s) <= F0(s);
 			forall(s in ENDPOINTS(index))						EndFuel(s)			:= F0(s) <= e(s);

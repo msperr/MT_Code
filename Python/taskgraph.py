@@ -1,4 +1,6 @@
 from multiprocessing import Pool
+import os
+import gzip
 import itertools
 from collections import OrderedDict
 import json
@@ -10,8 +12,6 @@ import entities
 import util
 import xpress
 from config import config
-
-count = True
 
 def create_taskgraph_preprocessing(args):
     instance, vertices = args
@@ -57,9 +57,6 @@ def create_taskgraph_preprocessing(args):
 
 def create_taskgraph(instance):
     
-    #TODO
-    spots = []
-
     ds = 'DEPOTSTART'
     de = 'DEPOTEND'
 
@@ -70,7 +67,7 @@ def create_taskgraph(instance):
 
     G.add_nodes_from((s, {
         'f0': s.fuel
-    }) for s in instance._vehicles)
+    }) for s in instance.vehicles)
 
     G.add_nodes_from((t, {
         'ft': t.distance * instance._fuelpermeter,
@@ -79,15 +76,11 @@ def create_taskgraph(instance):
         'fmax': 1 - min(map(lambda k: instance.dist(k, t)*instance._fuelpermeter, instance.refuelpoints))
     }) for t in instance._trips)
 
-    G.add_nodes_from((s, {
-        'f0': s.fuel
-    }) for s in spots)
-
-    G.add_edges_from((ds, s) for s in instance._vehicles)
+    G.add_edges_from((ds, s) for s in instance.vehicles)
     
     pool = Pool(4)
 
-    original = {t: t for t in itertools.chain(instance._vehicles, instance._refuelpoints, instance._trips, spots)}
+    original = {t: t for t in itertools.chain(instance._vehicles, instance._refuelpoints, instance._trips)}
     
     n = int(len(instance.vertices)/64)+1
     progress = progressbar.ProgressBar(maxval=64, widgets=[progressbar.Bar('#', '[', ']'), ' ', progressbar.Percentage(), ' ', progressbar.Timer(), ' ', progressbar.ETA()], term_width=config['console']['width']).start()
@@ -109,9 +102,8 @@ def create_taskgraph(instance):
     pool.terminate()
     pool.join()
 
-    G.add_edges_from((s, de) for s in instance._vehicles)
-    G.add_edges_from((t, de) for t in instance._trips)
-    G.add_edges_from((s, de) for s in spots)
+    G.add_edges_from((s, de) for s in instance.vehicles)
+    G.add_edges_from((t, de) for t in instance.trips)
 
     return G
 
@@ -142,14 +134,15 @@ def split_taskgraph_single(G, startpoints, endpoints, splittime, index):
                 G.remove_edge(startpoint, endpoint)
     return G, splitpoints
 
-def split_taskgraph(instance, G, timepoints):    
+def split_taskgraph_customer(instance, G, timepoints):  
+    
     splitpoint_list = []
     trip_list = []
     customer_list = []
-    trips = instance._trips
+    trips = list(instance.trips)
 
     for (index, timepoint) in enumerate(timepoints):
-        startpoints = instance._vehicles
+        startpoints = list(instance.vehicles)
         endpoints = []
         partialtrips = []     
         for trip in trips:
@@ -158,17 +151,60 @@ def split_taskgraph(instance, G, timepoints):
             else:
                 startpoints.append(trip)
                 partialtrips.append(trip)
-        trips = endpoints
+        trips = list(endpoints)
         G, splitpoints = split_taskgraph_single(G, startpoints, endpoints, timepoint, index)
         splitpoint_list.append(splitpoints)
         trip_list.append(partialtrips)
         customer_list.append(set(instance.customer(trip) for trip in partialtrips))
+        
     trip_list.append(trips)
     customer_list.append(set(instance.customer(trip) for trip in trip_list[-1]))
     splitpoint_list.append([])
+    
     return G, splitpoint_list, trip_list, customer_list
 
-def save_taskgraph_to_xpress(instance, G, filename):
+def split_taskgraph_time(instance, G, timepoints):
+    
+    splitpoint_list = []
+    trip_list = []
+    customer_list = []
+    route_list = []
+    trips = list(instance.trips)
+    customers = set(instance._customers.keys())
+
+    for (index, timepoint) in enumerate(timepoints):
+        startpoints = list(instance.vehicles)
+        endpoints = []
+        partialtrips = []
+        partialcustomers = []
+        for trip in trips:
+            if trip.start_time >= timepoint:
+                endpoints.append(trip)
+            else:
+                startpoints.append(trip)
+                partialtrips.append(trip)
+        trips = list(endpoints)
+        G, splitpoints = split_taskgraph_single(G, startpoints, endpoints, timepoint, index)
+        splitpoint_list.append(splitpoints)
+        trip_list.append(partialtrips)
+        
+        for customer in customers:
+            if instance.latest_starttime(customer) < timepoint:
+                partialcustomers.append(customer)
+        customer_list.append(partialcustomers)
+        customers = customers - set(partialcustomers)
+        
+        partialroutes = set(instance.route(trip) for trip in partialtrips if not instance.customer(trip) in partialcustomers)
+        route_list.append(partialroutes)
+        
+    trip_list.append(trips)
+    route_list.append([])
+    customer_list.append(customers)
+    splitpoint_list.append([])
+    
+    return G, splitpoint_list, trip_list, customer_list, route_list
+
+def save_taskgraph_to_xpress(filename, instance, G, compress=None):
 
     data = OrderedDict([
         ('DS', G.graph['ds']),
@@ -190,16 +226,22 @@ def save_taskgraph_to_xpress(instance, G, filename):
         ('CT', ((v, attr['ct']) for v, attr in G.nodes_iter(data=True) if 'ct' in attr)),
         ('CE', (((v, w), attr['ce']) for v, w, attr in G.edges_iter(data=True) if 'ce' in attr)),
         ('CD', (((v, w), attr['cd']) for v, w, attr in G.edges_iter(data=True) if 'cd' in attr)),
+        ('CR', ((r, cr) for (r, cr) in instance._routecost.iteritems())),
         ('Customers', (c for c in instance._customers.iterkeys())),
         ('Customer_Routes', ((c, r) for (c, r) in instance._customers.iteritems())),
         ('Routes', ((r, [xpress.xpress_index(t)]) for (r, t) in instance._routes.iteritems())),
         ('Vehicle_Cost', instance._costpercar)
     ])
+    
+    if compress is None:
+        compress = os.path.splitext(filename)[1] == '.gz'
+    if compress and not os.path.splitext(filename)[1] == '.gz':
+        filename += '.gz'
+    
+    with (gzip.open(filename, 'wb') if compress else open(filename, 'w')) as f:
+        xpress.xpress_write(f, data)    
 
-    with open(filename, 'w') as f:
-        xpress.xpress_write(f, data)
-
-def save_split_taskgraph_to_xpress(instance, G, splitpoint_list, trip_list, customer_list, filename):
+def save_split_taskgraph_to_xpress(filename, instance, G, splitpoint_list, trip_list, customer_list, route_list=[], compress=None):
     assert len(splitpoint_list) == len(trip_list) == len(customer_list)
     
     indices = range(1, len(splitpoint_list) + 1)
@@ -208,6 +250,7 @@ def save_split_taskgraph_to_xpress(instance, G, splitpoint_list, trip_list, cust
         ('Partial_Trips', ((i, (xpress.xpress_index(v) for v in trip_list[i-1])) for i in indices)),
         ('Partial_Splitpoints', ((i, (xpress.xpress_index(v) for v in splitpoint_list[i-1])) for i in indices)),
         ('Partial_Customers', ((i, (c for c in customer_list[i-1])) for i in indices)),
+        ('Partial_Routes', (((i, (m for m in route_list[i-1])) for i in indices) if route_list else [])),
         ('DS', G.graph['ds']),
         ('DE', G.graph['de']),
         ('Vehicles', (xpress.xpress_index(s) for s in G.nodes_iter() if isinstance(s, entities.Vehicle))),
@@ -224,6 +267,7 @@ def save_split_taskgraph_to_xpress(instance, G, splitpoint_list, trip_list, cust
         ('CT', ((v, attr['ct']) for v, attr in G.nodes_iter(data=True) if 'ct' in attr)),
         ('CE', (((v, w), attr['ce']) for v, w, attr in G.edges_iter(data=True) if 'ce' in attr)),
         ('CD', (((v, w), attr['cd']) for v, w, attr in G.edges_iter(data=True) if 'cd' in attr)),
+        ('CR', ((r, cr) for (r, cr) in instance._routecost.iteritems())),
         ('Fmin', ((v, attr['fmin']) for v, attr in G.nodes_iter(data=True) if 'fmin' in attr)),
         ('Fmax', ((v, attr['fmax']) for v, attr in G.nodes_iter(data=True) if 'fmax' in attr)),
         ('Customer_Routes', ((c, r) for (c, r) in instance._customers.iteritems())),
@@ -231,10 +275,15 @@ def save_split_taskgraph_to_xpress(instance, G, splitpoint_list, trip_list, cust
         ('Vehicle_Cost', instance._costpercar)
     ])
     
-    with open(filename, 'w') as f:
+    if compress is None:
+        compress = os.path.splitext(filename)[1] == '.gz'
+    if compress and not os.path.splitext(filename)[1] == '.gz':
+        filename += '.gz'
+    
+    with (gzip.open(filename, 'wb') if compress else open(filename, 'w')) as f:
         xpress.xpress_write(f, data)
 
-def save_taskgraph_to_json(G, filename):
+def save_taskgraph_to_json(G, filename, compress=None):
     dictionary = dict()
     dictionary['nodes'] = []
     for node, attributes in G.nodes_iter(data = True):
@@ -249,7 +298,12 @@ def save_taskgraph_to_json(G, filename):
         dictionary['nodes'].append({xpress.xpress_index(node) if isinstance(node, entities.Vehicle) or isinstance(node, entities.Trip) or isinstance(node, entities.Splitpoint) else node : nodedict})
     dictionary['attributes'] = G.graph
     
-    with open(filename, 'w') as f:
+    if compress is None:
+        compress = os.path.splitext(filename)[1] == '.gz'
+    if compress and not os.path.splitext(filename)[1] == '.gz':
+        filename += '.gz'
+    
+    with (gzip.open(filename, 'wb') if compress else open(filename, 'w')) as f:
         json.dump(dictionary,f)
 
 def load_taskgraph_from_json(filename, dictionary):
@@ -261,9 +315,6 @@ def load_taskgraph_from_json(filename, dictionary):
     de = data['attributes']['de']
     fuelpermeter = data['attributes']['fuelpermeter']
     refuelpersecond = data['attributes']['refuelpersecond']
-    #costpermeter = data['attributes']['costpermeter']
-    #costpercar = data['attributes']['costpercar']
-    #G = networkx.DiGraph(ds=ds, de=de, fuelpermeter=fuelpermeter, refuelpersecond=refuelpersecond, costpermeter=costpermeter, costpercar=costpercar)
     G = networkx.DiGraph(ds=ds, de=de, fuelpermeter=fuelpermeter, refuelpersecond=refuelpersecond)
     for node in data['nodes']:
         for key in node:
