@@ -1,8 +1,10 @@
 from argparse import ArgumentParser
 import random
+import os
 
 import storage
 import entities
+import taskgraph
 from config import config
 
 def determine_estimated_cost(instance):
@@ -63,11 +65,14 @@ if __name__ == '__main__':
     
     parser = ArgumentParser()
     parser.add_argument('-i', type=str, dest='instance')
+    parser.add_argument('-g', type=str, dest='graph')
     parser.add_argument('-s', type=str, dest='solution')
     parser.add_argument('-o', type=str, dest='fileoutput')
     args = parser.parse_args()
     
     solutionfile = config['data']['base'] + args.solution
+    basename = os.path.join(os.path.dirname(solutionfile), os.path.basename(solutionfile).split('.')[0])
+    compress = '.gz'
     
     print 'Loading solution ...'
     solution = storage.load_solution_from_xpress(solutionfile)
@@ -75,14 +80,32 @@ if __name__ == '__main__':
     
     instance = solution.instance
     
+    print 'Loading task graph ...'
+    if args.graph:
+        graphfile = config['data']['base'] + args.graph
+        G = taskgraph.load_taskgraph_from_json(graphfile, instance.dictionary)
+        print 'Successfully loaded task graph from %s' % graphfile
+    else:
+        graphfile = os.path.join(os.path.dirname(solutionfile), os.path.basename(solutionfile).split('.')[0])
+        if os.path.isfile(graphfile + '.graph.json.gz'):
+            graphfile += '.graph.json.gz'
+            G = taskgraph.load_taskgraph_from_json(graphfile, instance.dictionary)
+            print 'Successfully loaded task graph from %s' % graphfile
+        elif os.path.isfile(graphfile + '.graph.json'):
+            graphfile += '.graph.json'
+            G = taskgraph.load_taskgraph_from_json(graphfile, instance.dictionary)
+            print 'Successfully loaded task graph from %s' % graphfile
+    
+    assert not G is None
+    
     improved_cost = determine_improved_cost(solution)
     estimated_cost = determine_estimated_cost(solution.instance)
     evaluation = solution.evaluate_detailed()
     
     print 'Vehicles', evaluation[3], 'Trip Cost', round(evaluation[4]*instance._costpermeter, 1), 'Deadhead Cost', round(evaluation[5]*instance._costpermeter, 1), 'Route Cost', round(evaluation[6], 1)
     
-    for c, route in solution.customers.iteritems():
-        print 'Customer', '%3d'%c, 'Ratio', round(improved_cost[c]/estimated_cost[route], 2), 'Estimated Cost', [('%3d'%r, round(estimated_cost[r], 1)) for r in solution.instance._customers.get(c)], 'Route', route, 'Improved Cost', round(improved_cost[c], 1)
+    #for c, route in solution.customers.iteritems():
+    #    print 'Customer', '%3d'%c, 'Ratio', round(improved_cost[c]/estimated_cost[route], 2), 'Estimated Cost', [('%3d'%r, round(estimated_cost[r], 1)) for r in solution.instance._customers.get(c)], 'Route', route, 'Improved Cost', round(improved_cost[c], 1)
         
     # determine critical customer(s)
     # customers with high ratio and similar time windows
@@ -91,6 +114,14 @@ if __name__ == '__main__':
     
     critical_customers = random.sample(solution.customers.keys(), 5)
     
-    # export graph for HSP(c)
+    print 'Vehicles', solution.duties.keys()
+    
+    print 'Creating taskgraph for subproblem ...'
+    G_hsp, vehicles, startpoints, endpoints, trips = taskgraph.split_taskgraph_subproblem(instance, G, solution, critical_customers)
+    
+    xpressfile = '%s.hsp.txt%s' %(basename, compress)
+    print 'Exporting taskgraph for subproblem ...'
+    # save
+    print 'Task graph for subproblem successfully exported to %s' % xpressfile
         
     print '[INFO] Process finished'

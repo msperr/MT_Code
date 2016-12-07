@@ -40,6 +40,39 @@ class Solution:
             customers.update([(customer, (coveredroutes & set(routes)).pop())])
         
         return customers
+    
+    def duty(self, t):
+        return self.dutydict[t]
+    
+    def fuel_state(self, trip, start=True):
+        
+        s = self.duty(trip)
+        duty = self.duties[s]
+        e = s.fuel
+        r = None
+        for t in duty:
+            if isinstance(t, entities.Trip):
+                time = (t.start_time - s.finish_time).total_seconds() - (self.instance.time(s, r) + self.instance.time(r, t) if r else self.instance.time(s, t))
+                if r:
+                    e = min(e - self.instance.fuel(s, r) + self.instance._refuelpersecond * time, 1) - self.instance.fuel(r, t) - self.instance.fuel(t)
+                else:
+                    e -= (self.instance.fuel(s, t) + self.instance.fuel(t))
+                
+                if t == trip:
+                    if start:
+                        return e
+                    else:
+                        tmp_e = e + self.instance.fuel(t)
+                        
+                r = None
+                s = t
+            else:
+                r = t
+        
+        if not start:
+            return 1 + tmp_e - e
+        
+        return None
 
     def assert_valid(self, v=None):
         

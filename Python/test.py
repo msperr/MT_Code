@@ -38,7 +38,7 @@ if __name__ == '__main__2':
         print 'Item', t
         print 'Next', next(tmp_iter)
 
-if __name__ == '__main__':
+if __name__ == '__main__2':
     filename = config['data']['base'] + r'TU_C50\instance_small.split4.time.xpress.txt.gz'
     sol = storage.load_solution_from_xpress(filename)
     print sol.duties
@@ -50,5 +50,12 @@ if __name__ == '__main__':
     #storage.save_solution_to_xpress(outputfile, solution)
     #print 'Successfully saved solution to %s' % outputfile
     print 'Estimated Cost', ([sol.estimated_cost(c) for c in sol.customers.iterkeys()])
+
+if __name__ == '__main__':
+    tmp = None
+    tmplist = []
+    tmplist.append(1)
+    tmplist.append(tmp)
+    print tmplist
 
 # (1) same __repr__ for different trips

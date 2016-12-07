@@ -96,6 +96,9 @@ class Instance:
     def customer_starttime(self, t):
         return min(map((lambda t: t.start_time), self._customertrips.get(self.customer(t))))
     
+    def earliest_starttime(self, c):
+        return min(map(lambda k: k.start_time, self._customertrips.get(c)))
+    
     def latest_starttime(self, c):
         return max(map(lambda k: k.start_time, self._customertrips.get(c)))
     

@@ -101,7 +101,6 @@ def load_solution_from_xpress(filename, instance=None, compress=None):
 
     if instance is None:
         instancefile = os.path.join(os.path.dirname(filename), os.path.basename(filename).split('.')[0])
-        print 'Instancefile', instancefile
         if os.path.isfile(instancefile + '.json.gz'):
             instancefile += '.json.gz'
             instance = load_instance_from_json(instancefile)
