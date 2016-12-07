@@ -111,13 +111,16 @@ class Instance:
         return self._dist[self._index[s], self._index[t]]
 
     def fuel(self, s, t=None):
-        return self._fuelpermeter * (self._dist[self._index[s], self._index[t]] if t else 0.0 if self._index[s] < len(self._vehicles) else s.distance * 1000.0)
+        return self._fuelpermeter * (self._dist[self._index[s], self._index[t]] if t else 0.0 if self._index[s] < len(self._vehicles) else s.distance)
 
     def cost(self, s, t=None):
         return (self._costpercar if self._index[s] < len(self._vehicles) else 0) + self._costpermeter * self._dist[self._index[s], self._index[t]] if t else 0.0 if self._index[s] < len(self._vehicles) else self._costpermeter * s.distance
 
-    def initialfuel(self, s):
-        return self._initialfuel[self._index[s]]
+    def route_cost(self, r):
+        return self._routecost.get(r)
+    
+    #def initialfuel(self, s):
+    #    return self._initialfuel[self._index[s]]
     
     def subinstance(self, vehicles=None, customers=None, refuelpoints=None):
         vehicles = list(self._vehicles if vehicles is None else vehicles)

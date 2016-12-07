@@ -5,9 +5,13 @@ from datetime import datetime, timedelta
 from collections import OrderedDict
 
 import numpy
+import progressbar
 
 import entities
 from instance import Instance
+import xpress
+import solution
+from config import config
 
 def load_vehicles_from_json(filename):
     with open(filename) as f:    
@@ -92,6 +96,63 @@ def save_instance_to_json(filename, instance, compress=None):
     
     with (gzip.open(filename, 'wb') if compress else open(filename, 'w')) as f:
         json.dump(data, f, sort_keys=True)
+        
+def load_solution_from_xpress(filename, instance=None, compress=None):
+
+    if instance is None:
+        instancefile = os.path.join(os.path.dirname(filename), os.path.basename(filename).split('.')[0])
+        print 'Instancefile', instancefile
+        if os.path.isfile(instancefile + '.json.gz'):
+            instancefile += '.json.gz'
+            instance = load_instance_from_json(instancefile)
+            print 'Successfully loaded instance from %s' % instancefile
+        elif os.path.isfile(instancefile + '.json'):
+            instancefile += '.json'
+            instance = load_instance_from_json(instancefile)
+            print 'Successfully loaded instance from %s' % instancefile
+        
+    assert not instance is None
+            
+    parser_vehicles = xpress.parser_object(instance.vehicles)
+    parser_trips = xpress.parser_object(instance.trips + instance.refuelpoints, **{'': None})
+
+    parser_solution = xpress.parser_definitions({
+        'Duties': xpress.parser_dict((parser_vehicles,), xpress.parser_list(parser_trips))
+    })
+    
+    if compress is None:
+        compress = os.path.splitext(filename)[1] == '.gz'
+    if compress and not os.path.splitext(filename)[1] == '.gz':
+        filename += '.gz'
+
+    with (gzip.open(filename, 'rb') if compress else open(filename, 'r')) as f:
+        data = f.read()
+    
+    progress = progressbar.ProgressBar(maxval=len(data), widgets=[progressbar.Bar('#', '[', ']'), ' ', progressbar.Percentage(), ' ', progressbar.Timer(), ' ', progressbar.ETA()], term_width=config['console']['width']).start()
+    solution_duties = parser_solution.parse(data, progress)
+    progress.finish()
+
+    sol = solution.Solution(instance, solution_duties['Duties'])
+    
+    sol.assert_valid()
+    sol.customers = sol.determine_customers()
+        
+    return sol
+
+def save_solution_to_xpress(filename, solution, compress=None):
+    
+    data = OrderedDict([
+        ('Duties', ((xpress.xpress_index(s), (xpress.xpress_index(t) for t in duty)) for s, duty in solution.duties.iteritems())),
+        ('Customers', ((c, r) for (c, r) in solution.customers.iteritems()))
+    ])
+    
+    if compress is None:
+        compress = os.path.splitext(filename)[1] == '.gz'
+    if compress and not os.path.splitext(filename)[1] == '.gz':
+        filename += '.gz'
+    
+    with (gzip.open(filename, 'wb') if compress else open(filename, 'w')) as f:
+        xpress.xpress_write(f, data)
 
 ###############################################################################
 # deprecated methods

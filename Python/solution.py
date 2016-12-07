@@ -1,14 +1,10 @@
 from datetime import timedelta
 from itertools import izip, chain, count
-import os
-import gzip
 from enum import Enum
 
 import progressbar
 
 import osrm
-import xpress
-import storage
 from util import accumulate
 from config import config 
 import entities  
@@ -23,22 +19,29 @@ class Solution:
 
     instance = None
     duties = {}
+    customers = {}
+    trips = []
+    dutydict = {}
 
-    def __init__(self, instance, duties = None):
+    def __init__(self, instance, duties = None, customers = None):
+        
         self.instance = instance
         self.duties = duties if duties else {s: [] for s in instance.vehicles}
+        self.customers = customers if customers else {}
+        self.trips = set(t for duty in self.duties.itervalues() for t in duty if isinstance(t, entities.Trip))
+        self.dutydict.update([(trip, vehicle) for vehicle, trips in self.duties.iteritems() for trip in trips if isinstance(trip, entities.Trip)])
+    
+    def determine_customers(self):
+        
+        customers = {}
+        coveredtrips = set(t for duty in self.duties.itervalues() for t in duty if isinstance(t, entities.Trip))
+        coveredroutes = set(self.instance.route(t) for t in coveredtrips)
+        for customer, routes in self.instance._customers.iteritems():
+            customers.update([(customer, (coveredroutes & set(routes)).pop())])
+        
+        return customers
 
-    def export(self, filename, compress=None):
-
-        if compress == None:
-            compress = os.path.splitext(filename)[1] == '.gz'
-
-        with (gzip.open(filename, 'wb') if compress else open(filename, 'w')) as f:
-            xpress.write(f, {
-                'duties': self.duties
-            })
-
-    def assertValid(self, v=None):
+    def assert_valid(self, v=None):
         
         if not v:
             assert set(self.instance.vehicles) == set(self.duties.iterkeys()), '[WARN] Vehicle sets do not coincide'
@@ -49,30 +52,37 @@ class Solution:
                 assert set(self.instance._routes.get(route)) <= coveredtrips , '[WARN] Route %d is not satisfied' % route
             for customer, routes in self.instance._customers.iteritems():
                 assert len(coveredroutes & set(routes)) == 1, '[WARN] Customer %d is not satisfied' % customer
+        
+        for s, duty in ((v, self.duties[v]),) if v else self.duties.iteritems():
+            t_prev = s
+            for t in duty:
+                assert not (isinstance(t, entities.RefuelPoint) and isinstance(t_prev, entities.RefuelPoint)), '[WARN] Refuelpoints %s and %s in a row' % (t, t_prev)
+                t_prev = t
+            assert not isinstance(t_prev, entities.RefuelPoint), '[WARN] Refuelpoint %s at the end of a duty' % t_prev
 
         for s, duty in ((v, self.duties[v]),) if v else self.duties.iteritems():
-            # e = s.fuel?
-            e = self.instance.initialfuel(s)
+            e = s.fuel
+            r = None
             for t in duty:
                 assert e >= 0, '[WARN] Fuel for driving to %s is not sufficient' % s
                 
-                assert(t.start_time - s.finish_time).total_seconds() >= self.instance.time(s, t), '[WARN] Not enough time for driving from %s to %s' % (s, t)
-                e -= 
-            
-            
-            for t, r in duty:
-                assert e >= 0, 'Not enough fuel to travel to {0}'.format(s)
-                if r:
-                    time = (t.start_time - s.finish_time).total_seconds() - (self.instance.time(s, r) + self.instance.time(r, t))
-                    assert time >= 0, 'Not enough time to travel from {0} over {1} to {2}'.format(s, r, t)
-                    e -= self.instance.fuel(s, r)
-                    assert e >= 0, 'Refuelpoint {0} between {1} and {2} not reached'.format(r, s, t)
-                    e = min(e + self.instance._refuelpersecond * time, 1) - self.instance.fuel(r, t) - self.instance.fuel(t)
+                if isinstance(t, entities.Trip):
+                    time = (t.start_time - s.finish_time).total_seconds() - (self.instance.time(s, r) + self.instance.time(r, t) if r else self.instance.time(s, t))
+                    assert time >= 0, '[WARN] Not enough time for driving from %s to %s' % (s, t)
+                    
+                    if r:
+                        e -= self.instance.fuel(s, r)
+                        assert e >= 0, '[WARN] Refuel point between %s and %s cannot be reached' % (s, t)
+                        e = min(e + self.instance._refuelpersecond * time, 1) - self.instance.fuel(r, t) - self.instance.fuel(t)
+                    else:
+                        e -= (self.instance.fuel(s, t) + self.instance.fuel(t))
+                    
+                    r = None
+                    s = t
+                
                 else:
-                    assert (t.start_time - s.finish_time).total_seconds() >= self.instance.time(s, t), 'Not enough time to travel from {0} to {1}'.format(s, t)
-                    e -= self.instance.fuel(s, t) + self.instance.fuel(t)
-                s = t
-            assert e >= 0, 'Not enough fuel to travel to {0}'.format(s)
+                    r = t
+            assert e >= 0, '[WARN] Fuel for driving to %s is not sufficient' %s
 
     def evaluate(self, v=None):
         
@@ -110,14 +120,16 @@ class Solution:
                     dist_customer += t.distance
                     time += t.duration.total_seconds()
                 s = t
+        
+        cost_route = sum(self.instance.route_cost(r) for r in self.customers.itervalues())
                 
-        return cost, dist, time, used_vehicles, dist_customer, dist_deadhead
+        return cost, dist, time, used_vehicles, dist_customer, dist_deadhead, cost_route
 
     def keyframes(self):
 
         keyframes = {v: [] for v in self.duties}
         for v, duty in self.duties.iteritems():
-            e = self.instance.initialfuel(v)
+            e = v.fuel()
             keyframes[v].append((v.finish_time, v.finish_loc, e, VehicleState.waiting))
             for (s, _), (t, r) in izip(chain([(v, None)], duty[:-1]), duty):
                 if r:
@@ -161,52 +173,3 @@ class Solution:
             progress.finish()
 
         return routes
-    
-def import_solution(filename, instance=None, compress=None):
-
-    if instance is None:
-        instancefile = os.path.join(os.path.dirname(filename), os.path.basename(filename).split('.')[0])
-        print 'Instancefile', instancefile
-        if os.path.isfile(instancefile + '.json.gz'):
-            instancefile += '.json.gz'
-            instance = storage.load_instance_from_json(instancefile)
-            print 'Successfully loaded instance from %s' % instancefile
-        elif os.path.isfile(instancefile + '.json'):
-            instancefile += '.json'
-            instance = storage.load_instance_from_json(instancefile)
-            print 'Successfully loaded instance from %s' % instancefile
-        
-    assert not instance is None
-            
-    parser_vehicles = xpress.parser_object(instance.vehicles)
-    parser_trips = xpress.parser_object(instance.trips + instance.refuelpoints, **{'': None})
-
-    parser_solution = xpress.parser_definitions({
-        'Duties': xpress.parser_dict((parser_vehicles,), xpress.parser_list(parser_trips))
-    })
-    
-    if compress is None:
-        compress = os.path.splitext(filename)[1] == '.gz'
-    if compress and not os.path.splitext(filename)[1] == '.gz':
-        filename += '.gz'
-
-    with (gzip.open(filename, 'rb') if compress else open(filename, 'r')) as f:
-        data = f.read()
-    
-    print 'Loading solution ...'
-    
-    progress = progressbar.ProgressBar(maxval=len(data), widgets=[progressbar.Bar('#', '[', ']'), ' ', progressbar.Percentage(), ' ', progressbar.Timer(), ' ', progressbar.ETA()], term_width=config['console']['width']).start()
-    solution = parser_solution.parse(data, progress)
-    progress.finish()
-    
-    print 'Successfully loaded solution from %s' % filename
-        
-    return Solution(instance, solution['Duties'])
-
-if __name__ == '__main__':
-    filename = config['data']['base'] + r'TU_C50\instance_small.split4.time.xpress.txt.gz'
-    solution = import_solution(filename)
-    print solution.duties
-    print solution.evaluate()
-    cost, dist, time, used_vehicles, dist_customer, dist_deadhead = solution.evaluate_detailed()
-    print 'Cost', cost, 'Distance', dist, 'Time', timedelta(seconds=time), 'Vehicles Used', used_vehicles, 'Customer Distance', dist_customer, 'Deadhead Distance', dist_deadhead

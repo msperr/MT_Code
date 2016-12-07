@@ -4,6 +4,7 @@ import numpy
 import util
 import storage
 from config import config
+import solution
 
 if __name__ == '__main__2':
     
@@ -26,8 +27,28 @@ if __name__ == '__main__2':
     storage.save_instance_to_json(filename, instance, compress=True)
     print 'Finished'
 
-if __name__ == '__main__':
+if __name__ == '__main__2':
     filename = config['data']['base'] + config['data']['instance']
     print os.path.basename(filename)
+
+if __name__ == '__main__2':
+    tmp = [True, False, True, False, False, True, True, False, False]
+    tmp_iter = iter(tmp)
+    for t in iter(tmp):
+        print 'Item', t
+        print 'Next', next(tmp_iter)
+
+if __name__ == '__main__':
+    filename = config['data']['base'] + r'TU_C50\instance_small.split4.time.xpress.txt.gz'
+    sol = storage.load_solution_from_xpress(filename)
+    print sol.duties
+    print sol.evaluate()
+    cost, dist, time, used_vehicles, dist_customer, dist_deadhead = sol.evaluate_detailed()
+    print 'Cost', cost, 'Distance', dist, 'Time', timedelta(seconds=time), 'Vehicles Used', used_vehicles, 'Customer Distance', dist_customer, 'Deadhead Distance', dist_deadhead
+    print 'Customers', sol.customers
+    #outputfile = config['data']['base'] + r'TU_C50\instance_small.savedsolution.txt'
+    #storage.save_solution_to_xpress(outputfile, solution)
+    #print 'Successfully saved solution to %s' % outputfile
+    print 'Estimated Cost', ([sol.estimated_cost(c) for c in sol.customers.iterkeys()])
 
 # (1) same __repr__ for different trips
