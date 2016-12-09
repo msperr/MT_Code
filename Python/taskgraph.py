@@ -223,16 +223,9 @@ def split_taskgraph_subproblem(instance, G, solution, customers):
             startpoints.add(max(start, key = lambda k: k.start_time))
         if end:
             endpoints.add(min(end, key = lambda k: k.start_time))
-            
-    vehicles = startpoints & set(instance.vehicles)
-            
-    initial_fuel = dict([(t, solution.fuel_state(t, start=True)) for t in startpoints & set(instance.trips)])
-    initial_fuel.update([(s, s.fuel) for s in vehicles])
-    initial_fuel.update([(t, solution.fuel_state(t, start=False)) for t in endpoints])
     
-    print 'Startpoints', startpoints
-    print 'Endpoints', endpoints
-    print 'Initial Fuel', initial_fuel
+    initial_fuel = dict([(t, solution.fuelstates[t][1]) for t in startpoints])
+    initial_fuel.update([(t, solution.fuelstates[t][0] + instance.fuel(t)) for t in endpoints])
     
     ds = G.graph['ds']
     de = G.graph['de']
@@ -244,16 +237,18 @@ def split_taskgraph_subproblem(instance, G, solution, customers):
     
     new_graph.add_nodes_from((s, {
         'f0': initial_fuel[s]
-    }) for s in startpoints | endpoints)
-    
-    print 'Trips', trips
+    }) for s in startpoints)
 
     new_graph.add_nodes_from((t, {
         'ft': t.distance * instance._fuelpermeter,
         'ct': t.distance * instance._costpermeter,
-        'fmin': min(map(lambda k: instance.dist(t, k)*instance._fuelpermeter, instance.refuelpoints)),
-        'fmax': 1 - min(map(lambda k: instance.dist(k, t)*instance._fuelpermeter, instance.refuelpoints))
     }) for t in trips)
+    
+    new_graph.add_nodes_from((s, {
+        'f0': initial_fuel[s],
+        'ft': 0.0,
+        'ct': 0.0
+    }) for s in endpoints)
 
     new_graph.add_edges_from((ds, s) for s in startpoints)
     
@@ -261,12 +256,10 @@ def split_taskgraph_subproblem(instance, G, solution, customers):
         attr = G.get_edge_data(s, t)
         if attr:
             new_graph.add_edge(s, t, attr)
-    
+
     new_graph.add_edges_from((s, de) for s in startpoints | trips | endpoints)
     
-    startpoints = startpoints & set(instance.trips)
-    
-    return new_graph, vehicles, startpoints, endpoints, trips
+    return new_graph, startpoints, endpoints, trips
 
 def save_taskgraph_to_xpress(filename, instance, G, compress=None):
 
@@ -347,14 +340,18 @@ def save_split_taskgraph_to_xpress(filename, instance, G, splitpoint_list, trip_
     with (gzip.open(filename, 'wb') if compress else open(filename, 'w')) as f:
         xpress.xpress_write(f, data)
 
-def save_subproblem_taskgraph_to_xpress(filename, instance, G, vehicles, startpoints, endpoints, trips, customers, compress=None):
+def save_subproblem_taskgraph_to_xpress(filename, instance, G, startpoints, endpoints, trips, customers, compress=None):
+    
+    routes = list(r for c in customers for r in instance._customers.get(c))
+    customer_trips = set(t for c in customers for t in instance._customertrips.get(c))
     
     data = OrderedDict([
         ('DS', G.graph['ds']),
         ('DE', G.graph['de']),
-        ('Vehicles', (xpress.xpress_index(s) for s in vehicles)),
-        ('Startpoints', (xpress.xpress_index(s) for s in startpoints)),
-        ('Trips', (xpress.xpress_index(t) for t in trips)),
+        ('Vehicles', (xpress.xpress_index(s) for s in startpoints if isinstance(s, entities.Vehicle))),
+        ('Startpoints', (xpress.xpress_index(s) for s in startpoints if isinstance(s, entities.Trip))),
+        ('Trips', (xpress.xpress_index(t) for t in customer_trips)),
+        ('Fixed_Trips', (xpress.xpress_index(t) for t in trips - customer_trips)),
         ('Endpoints', (xpress.xpress_index(t) for t in endpoints)),
         ('Trip_Refuelpoints', (((v, w), xpress.xpress_index(attr['refuelpoint']) if attr['refuelpoint'] else '') for v, w, attr in G.edges_iter(data=True) if 'refuelpoint' in attr)),
         ('Nin', ((v, (xpress.xpress_index(w) for w in G.predecessors_iter(v))) for v in G.nodes())),
@@ -369,10 +366,10 @@ def save_subproblem_taskgraph_to_xpress(filename, instance, G, vehicles, startpo
         ('CT', ((v, attr['ct']) for v, attr in G.nodes_iter(data=True) if 'ct' in attr)),
         ('CE', (((v, w), attr['ce']) for v, w, attr in G.edges_iter(data=True) if 'ce' in attr)),
         ('CD', (((v, w), attr['cd']) for v, w, attr in G.edges_iter(data=True) if 'cd' in attr)),
-        ('CR', ((r, cr) for (r, cr) in instance._routecost.iteritems())),
+        ('CR', ((r, instance.route_cost(r)) for r in routes)),
         ('Customers', (c for c in customers)),
-        ('Customer_Routes', ((c, r) for (c, r) in instance._customers.iteritems())),
-        ('Routes', ((r, [xpress.xpress_index(t)]) for (r, t) in instance._routes.iteritems())),
+        ('Customer_Routes', ((c, instance._customers.get(c)) for c in customers)),
+        ('Routes', ((r, (xpress.xpress_index(t) for t in instance._routes.get(r))) for r in routes)),
         ('Vehicle_Cost', instance._costpercar)
     ])
     

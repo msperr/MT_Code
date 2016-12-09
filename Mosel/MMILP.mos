@@ -2,17 +2,19 @@ model "model"
 	
 	options noimplicit, explterm;
 	uses "mmxprs";
+	uses "zlib";
 	
 	parameters
-		INSTANCE     = "..\\..\\data\\instance_v100c200_total\\instance";
-		INSTANCEFILE = INSTANCE + ".txt";
-		OUTFILE      = INSTANCE + ".xpress.txt";
+		BASENAME		= "..\\..\\data\\";
+		INSTANCE		= "TU_C50\\instance_small";
+		INSTANCEFILE	= "zlib.gzip:" + BASENAME + INSTANCE + ".txt";
+		OUTFILE			= "zlib.gzip:" + BASENAME + INSTANCE + ".xpress.txt";
 	end-parameters
 	
-	setparam("XPRS_verbose", true);
+	!setparam("XPRS_verbose", true);
 	!setparam("XPRS_heurstrategy", 0);
 	!setparam("XPRS_presolve", 0);
-	setparam("XPRS_threads", 4);
+	!setparam("XPRS_threads", 4);
 	
 	!!!
 

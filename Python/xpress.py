@@ -103,6 +103,16 @@ class parser(object):
             return value, pos
         else:
             raise ValueError(pos)
+
+class parser_real(parser):
+    re = re.compile(r'(?:\+|-)?(?:\d*\.\d+|\d+\.?\d*)(?:e(?:\+|-)?\d+)?')
+    pattern = re.pattern
+
+    def __init__(self):
+        pass
+
+    def cast(self, match):
+        return float(match.group(0))
             
 class parser_string(parser):
     re = re.compile(r'"([^\"\\]*(?:\\.[^\"\\]*)*)"|\'([^\'\\]*(?:\\.[^\'\\]*)*)\'|([A-Za-z_][A-Za-z0-9_]*)')
@@ -269,6 +279,7 @@ class parser_definitions(object):
         self.dictionary = dictionary
 
     def parse(self, string, progress=None):
+        
         try:
             result = {}
 

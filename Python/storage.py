@@ -114,9 +114,12 @@ def load_solution_from_xpress(filename, instance=None, compress=None):
             
     parser_vehicles = xpress.parser_object(instance.vehicles)
     parser_trips = xpress.parser_object(instance.trips + instance.refuelpoints, **{'': None})
+    parser_fuel = xpress.parser_real()
 
     parser_solution = xpress.parser_definitions({
-        'Duties': xpress.parser_dict((parser_vehicles,), xpress.parser_list(parser_trips))
+        'Duties': xpress.parser_dict((parser_vehicles,), xpress.parser_list(parser_trips)),
+        'Fuel_Min': xpress.parser_dict((parser_vehicles,), xpress.parser_list(parser_fuel)),
+        'Fuel_Max': xpress.parser_dict((parser_vehicles,), xpress.parser_list(parser_fuel)),
     })
     
     if compress is None:
@@ -127,13 +130,21 @@ def load_solution_from_xpress(filename, instance=None, compress=None):
     with (gzip.open(filename, 'rb') if compress else open(filename, 'r')) as f:
         data = f.read()
     
-    progress = progressbar.ProgressBar(maxval=len(data), widgets=[progressbar.Bar('#', '[', ']'), ' ', progressbar.Percentage(), ' ', progressbar.Timer(), ' ', progressbar.ETA()], term_width=config['console']['width']).start()
-    solution_duties = parser_solution.parse(data, progress)
-    progress.finish()
+    #progress = progressbar.ProgressBar(maxval=len(data), widgets=[progressbar.Bar('#', '[', ']'), ' ', progressbar.Percentage(), ' ', progressbar.Timer(), ' ', progressbar.ETA()], term_width=config['console']['width']).start()
+    #solution_duties = parser_solution.parse(data, progress)
+    #progress.finish()
+    solution_dict = parser_solution.parse(data)
 
-    sol = solution.Solution(instance, solution_duties['Duties'])
+    sol = solution.Solution(instance, solution_dict['Duties'])
+    
+    basename = os.path.splitext(filename)[0]
+    if compress:
+        basename = os.path.splitext(basename)[0]
     
     sol.assert_valid()
+    sol._basename = basename
+    
+    sol.fuelstates = sol.determine_fuelstates(solution_dict['Fuel_Min'], solution_dict['Fuel_Max'])
     sol.customers = sol.determine_customers()
         
     return sol

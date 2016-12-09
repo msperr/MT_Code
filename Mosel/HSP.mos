@@ -1,0 +1,309 @@
+model "model"
+	
+	options noimplicit, explterm;
+	uses "mmxprs";
+	uses "zlib";
+	
+	parameters
+		BASENAME		= "..\\..\\data\\";
+		INSTANCE		= "TU_C50\\instance_small";
+		INSTANCEFILE	= "zlib.gzip:" + BASENAME + INSTANCE + ".hsp.txt.gz";
+		OUTFILE			= "zlib.gzip:" + BASENAME + INSTANCE + ".hsp.xpress.txt.gz";
+	end-parameters
+	
+	!setparam("XPRS_verbose", true);
+	!setparam("XPRS_heurstrategy", 0);
+	!setparam("XPRS_presolve", 0);
+	!setparam("XPRS_threads", 4);
+	
+	!!!
+
+	declarations
+		VEHICLES: set of string;
+		STARTPOINTS: set of string;
+		VARIABLE_TRIPS: set of string;
+		FIXED_TRIPS: set of string;
+		ENDPOINTS: set of string;
+		CUSTOMERS: set of integer;
+		DS: string;
+		DE: string;
+	end-declarations
+	
+	initializations from INSTANCEFILE
+		VEHICLES as 'Vehicles';
+		STARTPOINTS as 'Startpoints';
+		VARIABLE_TRIPS as 'Trips';
+		FIXED_TRIPS as 'Fixed_Trips';
+		ENDPOINTS as 'Endpoints';
+		CUSTOMERS as 'Customers';
+		DS;
+		DE;
+	end-initializations
+	
+	finalize(VEHICLES);
+	finalize(STARTPOINTS);
+	finalize(VARIABLE_TRIPS);
+	finalize(FIXED_TRIPS);
+	finalize(ENDPOINTS);
+	finalize(CUSTOMERS);
+	
+	writeln("Vehicles: ", getsize(VEHICLES));
+	writeln("Startpoints: ", getsize(STARTPOINTS));
+	writeln("Endpoints: ", getsize(ENDPOINTS));
+	writeln("Customers: ", getsize(CUSTOMERS));
+	
+	declarations
+		CUSTOMER_ROUTES: array(CUSTOMERS) of set of integer;
+		ROUTES: set of integer;
+	end-declarations
+	
+	initializations from INSTANCEFILE
+		CUSTOMER_ROUTES as 'Customer_Routes';
+	end-initializations
+	
+	forall(customer in CUSTOMERS) finalize(CUSTOMER_ROUTES(customer));
+	
+	ROUTES := union(customer in CUSTOMERS) CUSTOMER_ROUTES(customer);
+	finalize(ROUTES);
+	
+	writeln("Routes: ", getsize(ROUTES));
+	
+	declarations
+		ROUTE_TRIPS: array(ROUTES) of set of string;
+		TRIPS: set of string;
+		NODES_VT: set of string;
+		NODES_VP: set of string;
+		NODES_TP: set of string;
+		NODES: set of string;
+		VERTICES: set of string;
+	end-declarations
+	
+	initializations from INSTANCEFILE
+		ROUTE_TRIPS as 'Routes';
+	end-initializations
+
+	forall(route in ROUTES) finalize(ROUTE_TRIPS(route));
+	
+	TRIPS := VARIABLE_TRIPS + FIXED_TRIPS;
+	finalize(TRIPS);
+	NODES_VT := VEHICLES + STARTPOINTS + TRIPS + FIXED_TRIPS;
+	finalize(NODES_VT);
+	NODES_VP := VEHICLES + STARTPOINTS + ENDPOINTS;
+	finalize(NODES_VP);
+	NODES_TP := TRIPS + FIXED_TRIPS + ENDPOINTS;
+	finalize(NODES_TP);
+	NODES := VEHICLES + STARTPOINTS + TRIPS + FIXED_TRIPS + ENDPOINTS;
+	finalize(NODES);
+	VERTICES := {DS, DE} + NODES;
+	finalize(VERTICES);
+	
+	writeln("Trips: ", getsize(TRIPS));
+	writeln("Vertices: ", getsize(VERTICES));
+	
+	!!!
+	
+	declarations
+		REFUELPOINT: array(NODES_VT, NODES_TP) of string;
+	end-declarations
+	
+	initializations from INSTANCEFILE
+		REFUELPOINT as 'Trip_Refuelpoints';
+	end-initializations
+	
+	writeln("Refuel point copies: ", sum(s in NODES_VT, t in NODES_TP | REFUELPOINT(s, t) <> '') 1);
+	
+	!!!
+	
+	declarations
+		NIN:  array(VERTICES) of set of string;
+		NOUT: array(VERTICES) of set of string;
+		
+		F0: array(NODES_VP) of real;
+		FT: array(NODES_TP) of real;
+		FE: array(NODES_VT, NODES_TP) of real;
+		FG: array(NODES_VT, NODES_TP) of real;
+		FH: array(NODES_VT, NODES_TP) of real;
+		FD: array(NODES_VT, NODES_TP) of real;
+		FR: array(NODES_VT, NODES_TP) of real;
+		
+		CV: real;
+		CT: array(NODES_TP) of real;
+		CE: array(NODES_VT, NODES_TP) of real;
+		CD: array(NODES_VT, NODES_TP) of real;
+		CR: array(ROUTES) of real;
+	end-declarations
+	
+	initializations from INSTANCEFILE
+		NIN as 'Nin';
+		NOUT as 'Nout';
+		
+		F0;
+		FT;
+		FE;
+		FG;
+		FH;
+		FD;
+		FR;
+		
+		CV as 'Vehicle_Cost';
+		CT;
+		CE;
+		CD;
+		CR;
+	end-initializations
+	
+	forall(v in VERTICES) finalize(NIN(v));
+	forall(v in VERTICES) finalize(NOUT(v));
+	
+	writeln("Data read.");
+	
+	!!!
+	
+	!forward procedure read_solution(filename: string, sol_x: array(VERTICES, VERTICES) of real, sol_z: array(NODES, NODES, REFUELPOINTS) of real, sol_e: array(NODES) of real)
+	forward procedure write_solution(filename: string, sol_x: array(VERTICES, VERTICES) of real, sol_z: array(NODES_VT, NODES_TP) of real, sol_e: array(NODES) of real)
+	!forward procedure load_solution(sol_x: array(VERTICES, VERTICES) of real, sol_z: array(NODES, NODES, REFUELPOINTS) of real, sol_e: array(NODES) of real)
+	forward procedure store_solution(sol_x: array(VERTICES, VERTICES) of real, sol_z: array(NODES_VT, NODES_TP) of real, sol_e: array(NODES) of real, sol_u: array(ROUTES) of real)
+	
+	!!!
+	
+	declarations
+		
+		x: dynamic array(VERTICES, VERTICES) of mpvar;
+		z: dynamic array(NODES_VT, NODES_TP) of mpvar;
+		e: array(NODES) of mpvar;
+		u: array(ROUTES) of mpvar;
+		
+		outflow: array(VERTICES) of linctr;
+		inflow: array(VERTICES) of linctr;
+		
+	end-declarations
+		
+	forall(s in VERTICES, t in NOUT(s)) create(x(s, t));
+	forall(s in NODES_VT, t in NODES_TP) create(z(s, t));
+	
+	forall(v in VERTICES) inflow(v)  := sum(w in NIN(v)) x(w, v);
+	forall(v in VERTICES) outflow(v) := sum(w in NOUT(v)) x(v, w);
+
+	declarations
+		
+		CarNumber: linctr;
+		Distance: linctr;
+		TripCost: linctr;
+		DeadheadCost: linctr;
+		RouteCost: linctr;
+		TotalCost: linctr;
+
+		BinaryX: dynamic array(VERTICES, VERTICES) of linctr;
+		BinaryZ: dynamic array(NODES_VT, NODES_TP) of linctr;
+		IntervalE: array(NODES) of linctr;
+		BinaryU: dynamic array(ROUTES) of linctr;
+		DominanceXZ: dynamic array(NODES_VT, NODES_TP) of linctr;
+		StartendpointInflow: array(NODES_VP) of linctr;
+		FlowConservation: array(NODES) of linctr;
+		Customer: array(CUSTOMERS) of linctr;
+		Route: array(VARIABLE_TRIPS) of linctr;
+		FixedTrip: array(FIXED_TRIPS) of linctr;
+		StartFuel: array(VEHICLES + STARTPOINTS) of linctr;
+		EndFuel: array(ENDPOINTS) of linctr;
+		BeforeRefuel: dynamic array(NODES_VT, NODES_TP) of linctr;
+		AfterRefuel: dynamic array(NODES_VT, NODES_TP) of linctr;
+		FuelLinkage: dynamic array(NODES_VT, NODES_TP) of linctr;
+		
+	end-declarations
+	
+	declarations
+		sol_x: array(VERTICES, VERTICES) of real;
+		sol_z: array(NODES_VT, NODES_TP) of real;
+		sol_e: array(NODES) of real;
+		sol_u: array(ROUTES) of real;
+	end-declarations
+	
+	with mpproblem do
+		
+		CarNumber		:= sum(s in VEHICLES, t in NOUT(s) | t <> DE) x(s, t);
+		TripCost		:= sum(t in TRIPS, s in NIN(t)) x(s, t) * CT(t);
+		DeadheadCost	:= sum(t in NODES_TP, s in NIN(t)) (x(s, t) * CE(s, t) + z(s, t) * CD(s, t));
+		RouteCost		:= sum(m in ROUTES) u(m) * CR(m);
+		TotalCost		:= CarNumber * CV + TripCost + DeadheadCost + RouteCost;
+			
+		forall(s in VERTICES, t in NOUT(s))			BinaryX(s, t)			:= x(s, t) is_binary;
+		forall(s in NODES, t in NOUT(s) | t <> DE)	BinaryZ(s, t)			:= z(s, t) is_binary;
+		forall(t in NODES)							IntervalE(t)			:= e(t) <= 1;
+		forall(m in ROUTES)							BinaryU(m)				:= u(m) is_binary;
+		
+		forall(s in NODES, t in NOUT(s) | t <> DE)	DominanceXZ(s, t)   	:= z(s,t) <= x(s, t);
+		forall(s in NODES_VP)						StartendpointInflow(s)	:= inflow(s) = 1;
+		forall(t in NODES)							FlowConservation(t)		:= outflow(t) = inflow(t);
+		forall(c in CUSTOMERS)						Customer(c)				:= sum(m in CUSTOMER_ROUTES(c)) u(m) = 1;
+		forall(m in ROUTES, t in ROUTE_TRIPS(m))	Route(t)				:= sum(s in NIN(t)) x(s, t) = u(m);
+		forall(t in FIXED_TRIPS)					FixedTrip(t)			:= sum(s in NIN(t)) x(s, t) = 1;
+		forall(s in VEHICLES + STARTPOINTS)			StartFuel(s)			:= e(s) <= F0(s);
+		forall(s in ENDPOINTS)						EndFuel(s)				:= e(s) >= F0(s);
+		forall(s in NODES, t in NOUT(s) | t <> DE)	BeforeRefuel(s, t)  	:= z(s, t) * FG(s, t) <= e(s);
+		forall(s in NODES, t in NOUT(s) | t <> DE)	AfterRefuel(s, t)   	:= e(t) <= 1 - z(s, t) * FH(s, t) - FT(t);
+		forall(s in NODES, t in NOUT(s) | t <> DE)	FuelLinkage(s, t)   	:= e(t) <= e(s) - x(s, t) * (FE(s, t) + FT(t)) + z(s, t) * (FR(s, t) - FD(s, t)) + 1 - x(s, t);
+		
+		loadprob(TotalCost);
+		writeln("Model loaded.");
+		
+		minimize(TotalCost);
+		
+		writeln("Total Cost: ", getsol(TotalCost));
+		writeln("Number of cars: ", getsol(CarNumber));
+		writeln("Trip Cost: ", getsol(TripCost));
+		writeln("Deadhead Cost: ", getsol(DeadheadCost));
+		writeln("Route Cost: ", getsol(RouteCost));
+		
+		store_solution(sol_x, sol_z, sol_e, sol_u);
+		
+	end-do
+	
+	write_solution(OUTFILE, sol_x, sol_z, sol_e);
+	
+	!!!
+	
+	procedure write_solution(filename: string, sol_x: array(VERTICES, VERTICES) of real, sol_z: array(NODES_VT, NODES_TP) of real, sol_e: array(NODES) of real)
+		
+		declarations
+			DUTIES: array(VEHICLES + STARTPOINTS) of list of string;
+			t: string;
+			u: string;
+			r: string;
+		end-declarations
+		
+		forall(s in VEHICLES) do
+			DUTIES(s) := [];
+			t := s;
+			while(true) do
+				u := DE;
+				forall(v in NOUT(t) | sol_x(t, v) = 1) u := v;
+				if u = DE then
+					break;
+				end-if
+				r := '';
+				if sol_z(t, u) = 1 then
+					r := REFUELPOINT(t, u);
+					DUTIES(s) += [r, u];
+				else
+					DUTIES(s) += [u];
+				end-if
+				t := u;
+			end-do
+		end-do
+		
+		initializations to filename
+			DUTIES as 'Duties';
+		end-initializations
+		
+	end-procedure
+	
+	procedure store_solution(sol_x: array(VERTICES, VERTICES) of real, sol_z: array(NODES_VT, NODES_TP) of real, sol_e: array(NODES) of real, sol_u: array(ROUTES) of real)
+		
+		forall(s in VERTICES, t in NOUT(s))		sol_x(s, t)	:= getsol(x(s, t));
+		forall(s in NODES, t in NOUT(s)-{DE})	sol_z(s, t)	:= getsol(z(s, t));
+		forall(t in NODES)						sol_e(t)	:= getsol(e(t));
+		forall(m in ROUTES)						sol_u(m)	:= getsol(u(m));
+		
+	end-procedure
+	
+end-model

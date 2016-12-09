@@ -16,12 +16,15 @@ class VehicleState(Enum):
     rental = 3
 
 class Solution:
+    
+    _basename = ''
 
     instance = None
     duties = {}
     customers = {}
     trips = []
     dutydict = {}
+    fuelstates = {}
 
     def __init__(self, instance, duties = None, customers = None):
         
@@ -29,7 +32,7 @@ class Solution:
         self.duties = duties if duties else {s: [] for s in instance.vehicles}
         self.customers = customers if customers else {}
         self.trips = set(t for duty in self.duties.itervalues() for t in duty if isinstance(t, entities.Trip))
-        self.dutydict.update([(trip, vehicle) for vehicle, trips in self.duties.iteritems() for trip in trips if isinstance(trip, entities.Trip)])
+        self.dutydict = dict((trip, vehicle) for vehicle, trips in self.duties.iteritems() for trip in trips if isinstance(trip, entities.Trip))
     
     def determine_customers(self):
         
@@ -41,38 +44,21 @@ class Solution:
         
         return customers
     
+    def determine_fuelstates(self, fuel_min, fuel_max):
+        
+        fuelstates = {}
+        
+        for v, duty in self.duties.iteritems():
+            fuel_min_v = list(fuel_min[v])
+            fuel_max_v = list(fuel_max[v])
+            fuelstates.update(dict([(v, (fuel_min_v.pop(0), fuel_max_v.pop(0)))]))
+            assert len(duty) == len(fuel_min_v) == len(fuel_max_v)
+            fuelstates.update(dict([(duty[i], (fuel_min_v[i], fuel_max_v[i])) for i in range(len(duty)) if isinstance(duty[i], entities.Trip)]))
+        
+        return fuelstates
+    
     def duty(self, t):
         return self.dutydict[t]
-    
-    def fuel_state(self, trip, start=True):
-        
-        s = self.duty(trip)
-        duty = self.duties[s]
-        e = s.fuel
-        r = None
-        for t in duty:
-            if isinstance(t, entities.Trip):
-                time = (t.start_time - s.finish_time).total_seconds() - (self.instance.time(s, r) + self.instance.time(r, t) if r else self.instance.time(s, t))
-                if r:
-                    e = min(e - self.instance.fuel(s, r) + self.instance._refuelpersecond * time, 1) - self.instance.fuel(r, t) - self.instance.fuel(t)
-                else:
-                    e -= (self.instance.fuel(s, t) + self.instance.fuel(t))
-                
-                if t == trip:
-                    if start:
-                        return e
-                    else:
-                        tmp_e = e + self.instance.fuel(t)
-                        
-                r = None
-                s = t
-            else:
-                r = t
-        
-        if not start:
-            return 1 + tmp_e - e
-        
-        return None
 
     def assert_valid(self, v=None):
         

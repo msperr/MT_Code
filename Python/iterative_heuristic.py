@@ -1,6 +1,7 @@
 from argparse import ArgumentParser
 import random
 import os
+import subprocess
 
 import storage
 import entities
@@ -68,18 +69,49 @@ if __name__ == '__main__':
     parser.add_argument('-g', type=str, dest='graph')
     parser.add_argument('-s', type=str, dest='solution')
     parser.add_argument('-o', type=str, dest='fileoutput')
+    parser.add_argument('--compress', action='store_true')
+    parser.add_argument('--statistics', action='store_true')
     args = parser.parse_args()
     
     solutionfile = config['data']['base'] + args.solution
     basename = os.path.join(os.path.dirname(solutionfile), os.path.basename(solutionfile).split('.')[0])
-    compress = '.gz'
+    compress = '' if args.compress else '.gz'
+    
+    print '[INFO] Process started'
+    
+    instance = None
+    print 'Loading instance ...'
+    if args.instance:
+        instancefile = config['data']['base'] + args.instance
+        instance = storage.load_instance_from_json(instancefile)
+        print 'Instance successfully loaded from %s' % instancefile
+    else:
+        instancefile = os.path.join(os.path.dirname(solutionfile), os.path.basename(solutionfile).split('.')[0])
+        if os.path.isfile(instancefile + '.json.gz'):
+            instancefile += '.json.gz'
+            instance = storage.load_instance_from_json(instancefile)
+            print 'Instance successfully loaded from %s' % instancefile
+        elif os.path.isfile(instancefile + '.json'):
+            instancefile += '.json'
+            instance = storage.load_instance_from_json(instancefile)
+            print 'Instance successfully loaded from %s' % instancefile
+    assert not instance is None
+    
+    if args.statistics:
+        print 'Instance Basename', instance._basename
+        print 'Vehicles: %d, Customers: %d, Routes: %d, Trips: %d, Refuelpoints: %d' % (len(instance.vehicles), len(instance._customers), len(instance._routes), len(instance._trips), len(instance._refuelpoints))
+        print 'Start: %s, Finish: %s' % (instance.starttime.strftime('%Y-%m-%d %H:%M:%S'), instance.finishtime.strftime('%Y-%m-%d %H:%M:%S'))
     
     print 'Loading solution ...'
-    solution = storage.load_solution_from_xpress(solutionfile)
+    solution = storage.load_solution_from_xpress(solutionfile, instance)
     print 'Successfully loaded solution from %s' % solutionfile
     
-    instance = solution.instance
+    if args.statistics:
+        evaluation = solution.evaluate_detailed()
+        print 'Solution Basename', solution._basename
+        print 'Total Cost: %.1f, Duties: %d' % (evaluation[0], evaluation[3])
     
+    G = None
     print 'Loading task graph ...'
     if args.graph:
         graphfile = config['data']['base'] + args.graph
@@ -95,14 +127,10 @@ if __name__ == '__main__':
             graphfile += '.graph.json'
             G = taskgraph.load_taskgraph_from_json(graphfile, instance.dictionary)
             print 'Successfully loaded task graph from %s' % graphfile
-    
     assert not G is None
     
     improved_cost = determine_improved_cost(solution)
     estimated_cost = determine_estimated_cost(solution.instance)
-    evaluation = solution.evaluate_detailed()
-    
-    print 'Vehicles', evaluation[3], 'Trip Cost', round(evaluation[4]*instance._costpermeter, 1), 'Deadhead Cost', round(evaluation[5]*instance._costpermeter, 1), 'Route Cost', round(evaluation[6], 1)
     
     #for c, route in solution.customers.iteritems():
     #    print 'Customer', '%3d'%c, 'Ratio', round(improved_cost[c]/estimated_cost[route], 2), 'Estimated Cost', [('%3d'%r, round(estimated_cost[r], 1)) for r in solution.instance._customers.get(c)], 'Route', route, 'Improved Cost', round(improved_cost[c], 1)
@@ -111,17 +139,28 @@ if __name__ == '__main__':
     # customers with high ratio and similar time windows
     # consider if alternatives are available
     # high ratio with small estimated cost does not give much saving
+
+    critical_customers = random.sample(solution.customers.keys(), 2)
     
-    critical_customers = random.sample(solution.customers.keys(), 5)
+    if args.statistics:
+        print 'Reviewed Customers: %d' % len(critical_customers)
+        print 'Start: %s, Finish: %s' % (min(instance.earliest_starttime(c) for c in critical_customers).strftime('%Y-%m-%d %H:%M:%S'), max(instance.latest_starttime(c) for c in critical_customers).strftime('%Y-%m-%d %H:%M:%S'))
     
-    print 'Vehicles', solution.duties.keys()
+    print 'Creating task graph for subproblem ...'
+    G_hsp, startpoints, endpoints, trips = taskgraph.split_taskgraph_subproblem(instance, G, solution, critical_customers)
+    print 'Task graph for subproblem successfully created'
     
-    print 'Creating taskgraph for subproblem ...'
-    G_hsp, vehicles, startpoints, endpoints, trips = taskgraph.split_taskgraph_subproblem(instance, G, solution, critical_customers)
+    if args.statistics:
+        print 'Trips: %s, Vehicles: %s, Startpoints: %s, Endpoints: %s' % (len(trips), len(startpoints&set(instance.vehicles)), len(startpoints&set(instance.trips)), len(endpoints))
     
-    xpressfile = '%s.hsp.txt%s' %(basename, compress)
+    xpressfile = '%s.hsp.txt%s' %(solution._basename, compress)
     print 'Exporting taskgraph for subproblem ...'
-    # save
+    taskgraph.save_subproblem_taskgraph_to_xpress(xpressfile, instance, G_hsp, startpoints, endpoints, trips, critical_customers)
     print 'Task graph for subproblem successfully exported to %s' % xpressfile
+    
+    print 'Execute Mosel ...'
+    mosel = config['mosel'] + 'HSP.mos'
+    subprocess.Popen(['mosel', mosel, 'SOLUTION="%s"' % xpressfile])
+    print 'Mosel finished'
         
     print '[INFO] Process finished'

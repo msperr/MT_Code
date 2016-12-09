@@ -6,6 +6,7 @@
 		"base": "../../data/",
 		"instance": "instance.json"
 	},
+	"mosel": "../Mosel/",
 	"osrm": {
 		"executable": "../../routing/osrm/osrm-routed.exe",
 		"osm": "../../routing/osm/stgt/stuttgart-regbez-latest.osrm",

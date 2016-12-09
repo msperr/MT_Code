@@ -372,12 +372,9 @@ model "model"
 			
 			forall(t in NODES(index))							FlowConservation(t) := sum(s in NIN(t)) x(s, t) = sum(s in NOUT(t)) x(t, s);
 			forall(t in ENDPOINTS(index))						EndpointInflow(t)	:= sum(s in NIN(t)) x(s, t) = 1;
-
 			forall(c in CUSTOMERS(index))						Customer(c)			:= sum(m in CUSTOMER_ROUTES(c)) u(m) = 1;
 			forall(m in ROUTES(index), t in ROUTE_TRIPS(m) * TRIPS(index))			Route(t) 		:= sum(s in NIN(t)) x(s, t) = u(m);
 			forall(m in FIXED_ROUTES(index), t in ROUTE_TRIPS(m) * TRIPS(index))	FixedRoute(t)	:= sum(s in NIN(t)) x(s, t) = sol_u(m);
-
-			
 			forall(s in NODES(index), t in NOUT(s)-{DE(index)})	DominanceXZ(s, t)   := z(s,t) <= x(s, t);
 			forall(s in ENDPOINTS(index))						EndFuel(s)			:= F0(s) <= e(s);
 			forall(s in NODES(index), t in NOUT(s)-{DE(index)})	BeforeRefuel(s, t)  := z(s, t) * FG(s, t) <= e(s);

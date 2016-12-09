@@ -1,0 +1,279 @@
+model "model"
+	
+	options noimplicit, explterm;
+	uses "mmxprs";
+	uses "zlib";
+	
+	parameters
+		BASENAME		= "..\\..\\data\\";
+		INSTANCE     	= "TU_C50\\instance";
+		SOLUTION		= "split4";
+		INSTANCEFILE 	= "zlib.gzip:" + BASENAME + INSTANCE + ".txt.gz";
+		SOLUTIONFILE	= "zlib.gzip:" + BASENAME + INSTANCE + "." + SOLUTION + ".time.xpress.txt.gz";
+		OUTFILE      	= SOLUTIONFILE;
+	end-parameters
+	
+	!setparam("XPRS_verbose", true);
+	setparam("XPRS_heurstrategy", 0);
+	setparam("XPRS_presolve", 0);
+	!setparam("XPRS_threads", 4);
+	
+	!!!
+
+	declarations
+		VEHICLES: set of string;
+		TRIPS: set of string;
+		DS: string;
+		DE: string;
+	end-declarations
+	
+	initializations from INSTANCEFILE
+		VEHICLES as 'Vehicles';
+		TRIPS as 'Trips';
+		DS;
+		DE;
+	end-initializations
+	
+	finalize(VEHICLES);
+	finalize(TRIPS);
+	
+	writeln("Vehicles: ", getsize(VEHICLES));
+	writeln("Trips: ", getsize(TRIPS));
+	
+	declarations
+		NODES: set of string;
+		VERTICES: set of string;
+	end-declarations
+
+	NODES := VEHICLES + TRIPS;
+	finalize(NODES);
+	VERTICES := {DS, DE} + VEHICLES + TRIPS;
+	finalize(VERTICES);
+	
+	writeln("Vertices: ", getsize(VERTICES));
+	
+	!!!
+	
+	declarations
+		REFUELPOINT: array(NODES, TRIPS) of string;
+	end-declarations
+	
+	initializations from INSTANCEFILE
+		REFUELPOINT as 'Trip_Refuelpoints';
+	end-initializations
+
+	writeln("Refuel point copies: ", sum(s in NODES, t in NODES | exists(REFUELPOINT(s, t))) 1);
+	
+	!!!
+	
+	declarations
+		NIN:  array(VERTICES) of set of string;
+		NOUT: array(VERTICES) of set of string;
+		
+		F0: array(VEHICLES) of real;
+		FT: array(TRIPS) of real;
+		FE: array(NODES, TRIPS) of real;
+		FG: array(NODES, TRIPS) of real;
+		FH: array(NODES, TRIPS) of real;
+		FD: array(NODES, TRIPS) of real;
+		FR: array(NODES, TRIPS) of real;
+	end-declarations
+	
+	initializations from INSTANCEFILE
+		NIN as 'Nin';
+		NOUT as 'Nout';
+		
+		F0;
+		FT;
+		FE;
+		FG;
+		FH;
+		FD;
+		FR;
+	end-initializations
+	
+	forall(v in VERTICES) finalize(NIN(v));
+	forall(v in VERTICES) finalize(NOUT(v));
+	
+	writeln("Data read.");
+	
+	!!!
+	
+	forward procedure read_solution(sol_x: array(VERTICES, VERTICES) of real, sol_z: array(NODES, TRIPS) of real)
+	forward procedure write_solution(filename: string, sol_e_min: array(NODES) of real, sol_e_max: array(NODES) of real)
+	!forward procedure load_solution(sol_x: array(VERTICES, VERTICES) of real, sol_z: array(NODES, NODES, REFUELPOINTS) of real, sol_e: array(NODES) of real)
+	forward procedure store_solution(sol_e: array(NODES) of real)
+	
+	!!!
+	
+	declarations
+		x: dynamic array(VERTICES, VERTICES) of mpvar;
+		z: dynamic array(NODES, TRIPS) of mpvar;
+		e: array(NODES) of mpvar;
+	end-declarations
+		
+	forall(s in VERTICES, t in NOUT(s)) create(x(s, t));
+	forall(s in NODES, t in NOUT(s) | t <> DE) create(z(s, t));
+
+	declarations
+		FuelSum: linctr;
+
+		IntervalE: array(NODES) of linctr;
+		InitialFuel: array(VEHICLES) of linctr;
+		BeforeRefuel: array(VERTICES, VERTICES) of linctr;
+		AfterRefuel: array(VERTICES, VERTICES) of linctr;
+		FuelLinkage: array(VERTICES, VERTICES) of linctr;
+	end-declarations
+	
+	declarations
+		sol_x: array(VERTICES, VERTICES) of real;
+		sol_z: array(NODES, TRIPS) of real;
+		sol_e_min: array(NODES) of real;
+		sol_e_max: array(NODES) of real;
+	end-declarations
+	
+	declarations
+		DUTIES: array(VEHICLES) of list of string;
+	end-declarations
+	
+	initializations from SOLUTIONFILE
+		DUTIES as 'Duties';
+	end-initializations
+	
+	read_solution(sol_x, sol_z);
+	
+	with mpproblem do
+		
+		FuelSum := sum(t in NODES) e(t);
+		
+		forall(s in VERTICES, t in NOUT(s))			x(s, t) = sol_x(s, t);
+		forall(s in NODES, t in NOUT(s) | t <> DE)	z(s, t) = sol_z(s, t);
+		forall(t in NODES)							IntervalE(t)		:= e(t) <= 1;
+
+		forall(s in VEHICLES)						InitialFuel(s)      := e(s) <= F0(s);
+		forall(s in NODES, t in NOUT(s) | t <> DE)	BeforeRefuel(s, t)  := z(s, t) * FG(s, t) <= e(s);
+		forall(s in NODES, t in NOUT(s) | t <> DE)	AfterRefuel(s, t)   := e(t) <= 1 - z(s, t) * FH(s, t) - FT(t);
+		forall(s in NODES, t in NOUT(s) | t <> DE)	FuelLinkage(s, t)   := e(t) <= e(s) - x(s, t) * (FE(s, t) + FT(t)) + z(s, t) * (FR(s, t) - FD(s, t)) + 1 - x(s, t);
+		
+		loadprob(FuelSum);
+		writeln("Model loaded.");
+		
+		minimize(FuelSum);
+		
+		writeln("Minimal Fuel Sum: ", getsol(FuelSum));
+		
+		store_solution(sol_e_min);
+		
+	end-do
+	
+	with mpproblem do
+			
+		forall(s in VERTICES, t in NOUT(s))			x(s, t) = sol_x(s, t);
+		forall(s in NODES, t in NOUT(s) | t <> DE)	z(s, t) = sol_z(s, t);
+		forall(t in NODES)							IntervalE(t);
+
+		forall(s in VEHICLES)						InitialFuel(s);
+		forall(s in NODES, t in NOUT(s) | t <> DE)	BeforeRefuel(s, t);
+		forall(s in NODES, t in NOUT(s) | t <> DE)	AfterRefuel(s, t);
+		forall(s in NODES, t in NOUT(s) | t <> DE)	FuelLinkage(s, t);
+		
+		loadprob(FuelSum);
+		writeln("Model loaded.");
+		
+		maximize(FuelSum);
+
+		writeln("Maximal Fuel Sum: ", getsol(FuelSum));
+		
+		store_solution(sol_e_max);
+		
+	end-do
+	
+	write_solution(OUTFILE, sol_e_min, sol_e_max);
+	
+	!!!
+	
+	procedure read_solution(sol_x: array(VERTICES, VERTICES) of real, sol_z: array(NODES, TRIPS) of real)
+		
+		declarations
+			s: string;
+			r: string;
+		end-declarations
+		
+		forall(u in VERTICES, v in VERTICES | exists(sol_x(u, v)))	sol_x(u, v) := 0;
+		forall(u in NODES, v in TRIPS		| exists(sol_z(u, v)))	sol_z(u, v) := 0;
+		
+		forall(v in VEHICLES) do
+			s := v;
+			r := '';
+			sol_x(DS, s) := 1;
+			forall(t in DUTIES(v)) do
+				if t in TRIPS then
+					sol_x(s, t) := 1;
+					if r <> '' then
+						if r = REFUELPOINT(s, t) then
+							sol_z(s, t) := 1;
+						else
+							writeln("Warning: No suitable refuelpoint ", r);
+						end-if
+						r := '';
+					end-if
+					s := t;
+				else
+					r := t;
+				end-if
+			end-do
+			if r <> '' then
+				writeln("Warning: Refuelpoint ", r, " at end of duty");
+			end-if
+			sol_x(s, DE) := 1;
+		end-do
+		
+	end-procedure
+	
+	!!!
+	
+	procedure write_solution(filename: string, sol_e_min: array(NODES) of real, sol_e_max: array(NODES) of real)
+		
+		declarations
+			FUEL_MIN: array(VEHICLES) of list of real;
+			FUEL_MAX: array(VEHICLES) of list of real;
+			s: string;
+			r : string;
+		end-declarations
+		
+		forall(v in VEHICLES) do
+			s := v;
+			r := '';
+			FUEL_MIN(v) := [sol_e_min(v)];
+			FUEL_MAX(v) := [sol_e_max(v)];
+			forall(t in DUTIES(v)) do
+				if t in TRIPS then
+					if r <> '' then
+						FUEL_MIN(v) += [minlist(1.0, sol_e_min(s) - FG(s, t) + FR(s, t))];
+						FUEL_MAX(v) += [minlist(1.0, sol_e_max(s) - FG(s, t) + FR(s, t))];
+					end-if
+					FUEL_MIN(v) += [sol_e_min(t)];
+					FUEL_MAX(v) += [sol_e_max(t)];
+					s := t;
+					r := '';
+				else
+					r := t;
+				end-if
+			end-do
+		end-do
+		
+		initializations to filename
+			DUTIES as 'Duties';
+			FUEL_MIN as 'Fuel_Min';
+			FUEL_MAX as 'Fuel_Max';
+		end-initializations
+		
+	end-procedure
+	
+	!!!
+	
+	procedure store_solution(sol_e: array(NODES) of real)
+		forall(t in NODES)	sol_e(t)	:= getsol(e(t));
+	end-procedure
+	
+end-model

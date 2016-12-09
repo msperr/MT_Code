@@ -4,7 +4,7 @@ import numpy
 import util
 import storage
 from config import config
-import solution
+import subprocess
 
 if __name__ == '__main__2':
     
@@ -51,11 +51,22 @@ if __name__ == '__main__2':
     #print 'Successfully saved solution to %s' % outputfile
     print 'Estimated Cost', ([sol.estimated_cost(c) for c in sol.customers.iterkeys()])
 
-if __name__ == '__main__':
+if __name__ == '__main__2':
     tmp = None
     tmplist = []
     tmplist.append(1)
     tmplist.append(tmp)
     print tmplist
+    
+if __name__ == '__main__2':
+    fuel = [1, 2, 3]
+    print fuel.pop(0)
+    print fuel
+
+if __name__ == '__main__':
+    mosel = r'..\Mosel\HSP.mos'
+    print mosel
+    subprocess.Popen(['mosel', mosel, 'mmxprs.XPRS_verbose=true'])
+    #processes = [subprocess.Popen([osrm, osm, '-p', '%d' % port], cwd=os.path.dirname(osrm), stdout=subprocess.PIPE, stderr=subprocess.PIPE) for port in ports]
 
 # (1) same __repr__ for different trips
