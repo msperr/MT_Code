@@ -8,7 +8,7 @@ model "model"
 		BASENAME		= "..\\..\\data\\";
 		INSTANCE		= "TU_C50\\instance.split4";
 		INSTANCEFILE	= "zlib.gzip:" + BASENAME + INSTANCE + ".customer.txt.gz";
-		OUTFILE			= "zlib.gzip:" + BASENAME + INSTANCE + ".customer.xpress.txt.gz";
+		OUTFILE			= "zlib.gzip:" + BASENAME + INSTANCE + ".customer.solutions.txt.gz";
 		CV				= -1;
 	end-parameters
 	

@@ -6,9 +6,9 @@ model "model"
 	
 	parameters
 		BASENAME		= "..\\..\\data\\";
-		INSTANCE		= "TU_C50\\instance_small";
+		INSTANCE		= "TU_C50\\instance.split4.time";
 		INSTANCEFILE	= "zlib.gzip:" + BASENAME + INSTANCE + ".hsp.txt.gz";
-		OUTFILE			= "zlib.gzip:" + BASENAME + INSTANCE + ".hsp.xpress.txt.gz";
+		OUTFILE			= "zlib.gzip:" + BASENAME + INSTANCE + ".hsp.solution.txt.gz";
 	end-parameters
 	
 	!setparam("XPRS_verbose", true);
@@ -167,7 +167,6 @@ model "model"
 	!!!
 	
 	declarations
-		
 		x: dynamic array(VERTICES, VERTICES) of mpvar;
 		z: dynamic array(NODES_VT, NODES_TP) of mpvar;
 		e: array(NODES) of mpvar;
@@ -175,7 +174,6 @@ model "model"
 		
 		outflow: array(VERTICES) of linctr;
 		inflow: array(VERTICES) of linctr;
-		
 	end-declarations
 		
 	forall(s in VERTICES, t in NOUT(s)) create(x(s, t));

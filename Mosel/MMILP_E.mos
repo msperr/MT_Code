@@ -7,10 +7,10 @@ model "model"
 	parameters
 		BASENAME		= "..\\..\\data\\";
 		INSTANCE     	= "TU_C50\\instance";
-		SOLUTION		= "split4";
+		SOLUTION		= "TU_C50\\instance.split4.time";
 		INSTANCEFILE 	= "zlib.gzip:" + BASENAME + INSTANCE + ".txt.gz";
-		SOLUTIONFILE	= "zlib.gzip:" + BASENAME + INSTANCE + "." + SOLUTION + ".time.xpress.txt.gz";
-		OUTFILE      	= SOLUTIONFILE;
+		SOLUTIONFILE	= "zlib.gzip:" + BASENAME + SOLUTION + ".solution.txt.gz";
+		OUTFILE      	= "zlib.gzip:" + BASENAME + SOLUTION + ".fuelsolution.txt.gz";
 	end-parameters
 	
 	!setparam("XPRS_verbose", true);

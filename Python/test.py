@@ -63,10 +63,15 @@ if __name__ == '__main__2':
     print fuel.pop(0)
     print fuel
 
-if __name__ == '__main__':
+if __name__ == '__main__2':
     mosel = r'..\Mosel\HSP.mos'
     print mosel
     subprocess.Popen(['mosel', mosel, 'mmxprs.XPRS_verbose=true'])
     #processes = [subprocess.Popen([osrm, osm, '-p', '%d' % port], cwd=os.path.dirname(osrm), stdout=subprocess.PIPE, stderr=subprocess.PIPE) for port in ports]
+    
+if __name__ == '__main__':
+    input1 = '2,3,4'
+    input2 = '2'
+    
 
 # (1) same __repr__ for different trips
