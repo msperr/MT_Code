@@ -141,11 +141,11 @@ if __name__ == '__main__':
     # consider if alternatives are available
     # high ratio with small estimated cost does not give much saving
 
-    #critical_customers = random.sample(solution.customers.keys(), 2)
-    critical_customers = [24, 25]
+    critical_customers = random.sample(solution.customers.keys(), 3)
+    #critical_customers = [38, 30, 45]
 
     if args.statistics:
-        print 'Reviewed Customers: %d' % len(critical_customers)
+        print 'Reviewed Customers: %d' % len(critical_customers), critical_customers
         print 'Start: %s, Finish: %s' % (min(instance.earliest_starttime(c) for c in critical_customers).strftime('%Y-%m-%d %H:%M:%S'), max(instance.latest_starttime(c) for c in critical_customers).strftime('%Y-%m-%d %H:%M:%S'))
     
     print 'Creating task graph for subproblem ...'
@@ -164,5 +164,20 @@ if __name__ == '__main__':
     mosel = config['mosel'] + 'HSP.mos'
     i = subprocess.call(['mosel', mosel, 'INSTANCE=%s' % solutionname])
     print 'Mosel finished', i
+    
+    solutionfile = config['data']['base'] + solutionname + '.hsp.solution.txt%s' % compress
+    print 'Loading partial solution ...'
+    new_solution = storage.load_partial_solution_from_xpress(solutionfile, solution, instance, endpoints)
+    print 'Partial Solution successfully loaded from %s' % solutionfile
+    
+    if args.statistics:
+        evaluation = new_solution.evaluate_detailed()
+        print 'Solution Basename', new_solution._basename
+        print 'Total Cost: %.1f, Duties: %d' % (evaluation[0], evaluation[3])
+    
+    solutionfile = config['data']['base'] + args.solution + '.solution.txt%s' % compress
+    print 'Exporting solution ...'
+    storage.save_solution_to_xpress(solutionfile, new_solution)
+    print 'Successfully exported solution to %s' % solutionfile
         
     print '[INFO] Process finished'

@@ -5,6 +5,7 @@ import util
 import storage
 from config import config
 import subprocess
+import taskgraph
 
 if __name__ == '__main__2':
     
@@ -69,9 +70,19 @@ if __name__ == '__main__2':
     subprocess.Popen(['mosel', mosel, 'mmxprs.XPRS_verbose=true'])
     #processes = [subprocess.Popen([osrm, osm, '-p', '%d' % port], cwd=os.path.dirname(osrm), stdout=subprocess.PIPE, stderr=subprocess.PIPE) for port in ports]
     
-if __name__ == '__main__':
+if __name__ == '__main__2':
     input1 = '2,3,4'
     input2 = '2'
-    
 
-# (1) same __repr__ for different trips
+if __name__ == '__main__':
+    instancefile = config['data']['base'] + r'TU_C50\instance.json.gz'
+    solutionfile = config['data']['base'] + r'TU_C50\instance.split4.time.fuelsolution.txt.gz'
+    improvedfile = config['data']['base'] + r'TU_C50\instance.split4.time.hsp.solution.txt.gz'
+    graphfile = config['data']['base'] + r'TU_c50\instance.graph.json.gz'
+    instance = storage.load_instance_from_json(instancefile)
+    solution = storage.load_solution_from_xpress(solutionfile, instance)
+    graph = taskgraph.load_taskgraph_from_json(graphfile, instance.dictionary)
+    taskgraph.split_taskgraph_subproblem(instance, graph, solution, [0,5,9])
+    
+    improved = storage.load_partial_solution_from_xpress(improvedfile, solution, instance)
+    

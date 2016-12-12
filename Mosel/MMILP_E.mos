@@ -8,15 +8,26 @@ model "model"
 		BASENAME		= "..\\..\\data\\";
 		INSTANCE     	= "TU_C50\\instance";
 		SOLUTION		= "TU_C50\\instance.split4.time";
-		INSTANCEFILE 	= "zlib.gzip:" + BASENAME + INSTANCE + ".txt.gz";
-		SOLUTIONFILE	= "zlib.gzip:" + BASENAME + SOLUTION + ".solution.txt.gz";
-		OUTFILE      	= "zlib.gzip:" + BASENAME + SOLUTION + ".fuelsolution.txt.gz";
+		COMPRESS		= true;
 	end-parameters
 	
-	!setparam("XPRS_verbose", true);
-	setparam("XPRS_heurstrategy", 0);
-	setparam("XPRS_presolve", 0);
-	!setparam("XPRS_threads", 4);
+	writeln("[MOS] Solving MMILP_E ...");
+	
+	declarations
+		INSTANCEFILE: string;
+		SOLUTIONFILE: string;
+		OUTFILE: string;
+	end-declarations
+		
+	if COMPRESS then
+		INSTANCEFILE	:= "zlib.gzip:" + BASENAME + INSTANCE + ".txt.gz";
+		SOLUTIONFILE	:= "zlib.gzip:" + BASENAME + SOLUTION + ".solution.txt.gz";
+		OUTFILE			:= "zlib.gzip:" + BASENAME + SOLUTION + ".fuelsolution.txt.gz";
+	else
+		INSTANCEFILE	:= BASENAME + INSTANCE + ".txt";
+		SOLUTIONFILE	:= BASENAME + SOLUTION + ".solution.txt";
+		OUTFILE			:= BASENAME + SOLUTION + ".fuelsolution.txt";
+	end-if
 	
 	!!!
 
@@ -37,9 +48,6 @@ model "model"
 	finalize(VEHICLES);
 	finalize(TRIPS);
 	
-	writeln("Vehicles: ", getsize(VEHICLES));
-	writeln("Trips: ", getsize(TRIPS));
-	
 	declarations
 		NODES: set of string;
 		VERTICES: set of string;
@@ -50,8 +58,6 @@ model "model"
 	VERTICES := {DS, DE} + VEHICLES + TRIPS;
 	finalize(VERTICES);
 	
-	writeln("Vertices: ", getsize(VERTICES));
-	
 	!!!
 	
 	declarations
@@ -61,8 +67,6 @@ model "model"
 	initializations from INSTANCEFILE
 		REFUELPOINT as 'Trip_Refuelpoints';
 	end-initializations
-
-	writeln("Refuel point copies: ", sum(s in NODES, t in NODES | exists(REFUELPOINT(s, t))) 1);
 	
 	!!!
 	
@@ -95,7 +99,7 @@ model "model"
 	forall(v in VERTICES) finalize(NIN(v));
 	forall(v in VERTICES) finalize(NOUT(v));
 	
-	writeln("Data read.");
+	writeln("[MOS] Data read");
 	
 	!!!
 	
@@ -156,11 +160,12 @@ model "model"
 		forall(s in NODES, t in NOUT(s) | t <> DE)	FuelLinkage(s, t)   := e(t) <= e(s) - x(s, t) * (FE(s, t) + FT(t)) + z(s, t) * (FR(s, t) - FD(s, t)) + 1 - x(s, t);
 		
 		loadprob(FuelSum);
-		writeln("Model loaded.");
+		
+		writeln("[MOS] Model loaded");
 		
 		minimize(FuelSum);
 		
-		writeln("Minimal Fuel Sum: ", getsol(FuelSum));
+		writeln("[MOS] Minimal Fuel Sum: ", getsol(FuelSum));
 		
 		store_solution(sol_e_min);
 		
@@ -178,17 +183,19 @@ model "model"
 		forall(s in NODES, t in NOUT(s) | t <> DE)	FuelLinkage(s, t);
 		
 		loadprob(FuelSum);
-		writeln("Model loaded.");
+		writeln("[MOS] Model loaded.");
 		
 		maximize(FuelSum);
 
-		writeln("Maximal Fuel Sum: ", getsol(FuelSum));
+		writeln("[MOS] Maximal Fuel Sum: ", getsol(FuelSum));
 		
 		store_solution(sol_e_max);
 		
 	end-do
 	
 	write_solution(OUTFILE, sol_e_min, sol_e_max);
+	
+	writeln("[MOS] Solution successfully saved to ", OUTFILE);
 	
 	!!!
 	

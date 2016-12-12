@@ -252,7 +252,7 @@ def split_taskgraph_subproblem(instance, G, solution, customers):
 
     new_graph.add_edges_from((ds, s) for s in startpoints)
     
-    for (s, t) in itertools.chain(itertools.product(startpoints, trips), itertools.product(trips, endpoints)):
+    for (s, t) in itertools.product(itertools.chain(startpoints, trips), itertools.chain(trips, endpoints)):
         attr = G.get_edge_data(s, t)
         if attr:
             new_graph.add_edge(s, t, attr)

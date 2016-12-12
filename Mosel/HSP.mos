@@ -7,16 +7,23 @@ model "model"
 	parameters
 		BASENAME		= "..\\..\\data\\";
 		INSTANCE		= "TU_C50\\instance.split4.time";
-		INSTANCEFILE	= "zlib.gzip:" + BASENAME + INSTANCE + ".hsp.txt.gz";
-		OUTFILE			= "zlib.gzip:" + BASENAME + INSTANCE + ".hsp.solution.txt.gz";
+		COMPRESS		= true;
 	end-parameters
 	
-	!setparam("XPRS_verbose", true);
-	!setparam("XPRS_heurstrategy", 0);
-	!setparam("XPRS_presolve", 0);
-	!setparam("XPRS_threads", 4);
-	
-	!!!
+	writeln("[MOS] Solving HSP ...");
+
+	declarations
+		INSTANCEFILE: string;
+		OUTFILE: string;
+	end-declarations
+		
+	if COMPRESS then
+		INSTANCEFILE	:= "zlib.gzip:" + BASENAME + INSTANCE + ".hsp.txt.gz";
+		OUTFILE			:= "zlib.gzip:" + BASENAME + INSTANCE + ".hsp.solution.txt.gz";
+	else
+		INSTANCEFILE	:= BASENAME + INSTANCE + ".hsp.txt";
+		OUTFILE			:= BASENAME + INSTANCE + ".hsp.solution.txt";
+	end-if
 
 	declarations
 		VEHICLES: set of string;
@@ -47,10 +54,7 @@ model "model"
 	finalize(ENDPOINTS);
 	finalize(CUSTOMERS);
 	
-	writeln("Vehicles: ", getsize(VEHICLES));
-	writeln("Startpoints: ", getsize(STARTPOINTS));
-	writeln("Endpoints: ", getsize(ENDPOINTS));
-	writeln("Customers: ", getsize(CUSTOMERS));
+	writeln("[MOS] Vehicles: ", getsize(VEHICLES), ", Startpoints: ", getsize(STARTPOINTS), ", Endpoints: ", getsize(ENDPOINTS), ", Customers: ", getsize(CUSTOMERS));
 	
 	declarations
 		CUSTOMER_ROUTES: array(CUSTOMERS) of set of integer;
@@ -65,8 +69,6 @@ model "model"
 	
 	ROUTES := union(customer in CUSTOMERS) CUSTOMER_ROUTES(customer);
 	finalize(ROUTES);
-	
-	writeln("Routes: ", getsize(ROUTES));
 	
 	declarations
 		ROUTE_TRIPS: array(ROUTES) of set of string;
@@ -97,8 +99,7 @@ model "model"
 	VERTICES := {DS, DE} + NODES;
 	finalize(VERTICES);
 	
-	writeln("Trips: ", getsize(TRIPS));
-	writeln("Vertices: ", getsize(VERTICES));
+	writeln("[MOS] Routes: ", getsize(ROUTES), ", Trips: ", getsize(TRIPS), ", Vertices: ", getsize(VERTICES));
 	
 	!!!
 	
@@ -109,8 +110,6 @@ model "model"
 	initializations from INSTANCEFILE
 		REFUELPOINT as 'Trip_Refuelpoints';
 	end-initializations
-	
-	writeln("Refuel point copies: ", sum(s in NODES_VT, t in NODES_TP | REFUELPOINT(s, t) <> '') 1);
 	
 	!!!
 	
@@ -155,7 +154,7 @@ model "model"
 	forall(v in VERTICES) finalize(NIN(v));
 	forall(v in VERTICES) finalize(NOUT(v));
 	
-	writeln("Data read.");
+	writeln("[MOS] Data read");
 	
 	!!!
 	
@@ -242,21 +241,21 @@ model "model"
 		forall(s in NODES, t in NOUT(s) | t <> DE)	FuelLinkage(s, t)   	:= e(t) <= e(s) - x(s, t) * (FE(s, t) + FT(t)) + z(s, t) * (FR(s, t) - FD(s, t)) + 1 - x(s, t);
 		
 		loadprob(TotalCost);
-		writeln("Model loaded.");
+		writeln("[MOS] Model loaded");
 		
 		minimize(TotalCost);
 		
-		writeln("Total Cost: ", getsol(TotalCost));
-		writeln("Number of cars: ", getsol(CarNumber));
-		writeln("Trip Cost: ", getsol(TripCost));
-		writeln("Deadhead Cost: ", getsol(DeadheadCost));
-		writeln("Route Cost: ", getsol(RouteCost));
+		writeln("[MOS] Total Cost: ", getsol(TotalCost));
+		writeln("[MOS] Number of cars: ", getsol(CarNumber));
+		writeln("[MOS] Trip Cost: ", getsol(TripCost), ", Deadhead Cost: ", getsol(DeadheadCost), ", Route Cost: ", getsol(RouteCost));
 		
 		store_solution(sol_x, sol_z, sol_e, sol_u);
 		
 	end-do
 	
 	write_solution(OUTFILE, sol_x, sol_z, sol_e);
+	
+	writeln("[MOS] Solution successfully saved to ", OUTFILE);
 	
 	!!!
 	
@@ -269,7 +268,7 @@ model "model"
 			r: string;
 		end-declarations
 		
-		forall(s in VEHICLES) do
+		forall(s in VEHICLES + STARTPOINTS) do
 			DUTIES(s) := [];
 			t := s;
 			while(true) do

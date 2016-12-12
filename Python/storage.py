@@ -97,6 +97,57 @@ def save_instance_to_json(filename, instance, compress=None):
     with (gzip.open(filename, 'wb') if compress else open(filename, 'w')) as f:
         json.dump(data, f, sort_keys=True)
         
+def load_partial_solution_from_xpress(filename, previous_solution, instance, endpoints, compress=None):
+    
+    assert not instance is None
+    
+    parser_vehicles = xpress.parser_object(instance.vehicles + instance.trips)
+    parser_trips = xpress.parser_object(instance.trips + instance.refuelpoints, **{'': None})
+    
+    parser_solution = xpress.parser_definitions({
+        'Duties': xpress.parser_dict((parser_vehicles,), xpress.parser_list(parser_trips))
+    })
+    
+    if compress is None:
+        compress = os.path.splitext(filename)[1] == '.gz'
+    if compress and not os.path.splitext(filename)[1] == '.gz':
+        filename += '.gz'
+
+    with (gzip.open(filename, 'rb') if compress else open(filename, 'r')) as f:
+        data = f.read()
+    
+    partial_duties = parser_solution.parse(data)['Duties']
+    previous_duties = previous_solution.duties 
+    
+    duties = {}
+    for s, partial_duty in partial_duties.iteritems():
+        if isinstance(s, entities.Trip):
+            v, duty = previous_solution.duty(s), list(previous_duties[previous_solution.duty(s)])
+            index = duty.index(s)
+            duty = duty[0:index+1] + partial_duty
+            duties.update([(v, duty)])
+        elif isinstance(s, entities.Vehicle):
+            duties.update([(s, partial_duty)])
+        else:
+            raise ValueError, 'No trip or vehicle %s' % s
+    
+    for s, partial_duty in duties.iteritems():
+        if (partial_duty[-1] in endpoints if partial_duty else False):
+            t = partial_duty[-1]
+            v, duty = previous_solution.duty(t), list(previous_duties[previous_solution.duty(t)])
+            index = duty.index(t)
+            partial_duty.extend(duty[index+1:])
+            duties.update([(s, partial_duty)])
+    
+    sol = solution.Solution(instance, duties)
+    
+    sol.assert_valid()
+    sol._basename = previous_solution._basename
+
+    sol.customers = sol.determine_customers()
+        
+    return sol
+
 def load_solution_from_xpress(filename, instance=None, compress=None):
 
     if instance is None:
@@ -152,8 +203,7 @@ def load_solution_from_xpress(filename, instance=None, compress=None):
 def save_solution_to_xpress(filename, solution, compress=None):
     
     data = OrderedDict([
-        ('Duties', ((xpress.xpress_index(s), (xpress.xpress_index(t) for t in duty)) for s, duty in solution.duties.iteritems())),
-        ('Customers', ((c, r) for (c, r) in solution.customers.iteritems()))
+        ('Duties', ((xpress.xpress_index(s), (xpress.xpress_index(t) for t in duty)) for s, duty in solution.duties.iteritems()))
     ])
     
     if compress is None:

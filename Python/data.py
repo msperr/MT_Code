@@ -75,18 +75,17 @@ if __name__ == '__main__':
         storage.save_instance_to_json(instancefile, instance)
         print 'Instance successfully saved to %s' % instancefile
     
-    graph = None
     if not export:
         graphfile = config['data']['base'] + instancename + '.graph'
-        if path.isfile(graphfile + 'json.gz'):
+        if path.isfile(graphfile + '.json.gz'):
             print 'Loading task graph ...'
             graphfile += '.json.gz'
-            graph = taskgraph.load_taskgraph_from_json(graphfile)
+            graph = taskgraph.load_taskgraph_from_json(graphfile, instance.dictionary)
             print 'Task graph successfully loaded from %s' % graphfile
-        elif path.isfile(graphfile + 'json'):
+        elif path.isfile(graphfile + '.json'):
             print 'Loading task graph ...'
             graphfile += '.json'
-            graph = taskgraph.load_taskgraph_from_json(graphfile)
+            graph = taskgraph.load_taskgraph_from_json(graphfile, instance.dictionary)
             print 'Task graph successfully loaded from %s' % graphfile
     if graph is None:
         export = True

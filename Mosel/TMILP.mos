@@ -7,12 +7,25 @@ model "model"
 	parameters
 		BASENAME		= "..\\..\\data\\";
 		INSTANCE		= "TU_C50\\instance.split4";
-		INSTANCEFILE	= "zlib.gzip:" + BASENAME + INSTANCE + ".time.txt.gz";
-		OUTFILE			= "zlib.gzip:" + BASENAME + INSTANCE + ".time.solution.txt.gz";
 		CV				= -1;
+		COMPRESS		= true;
 	end-parameters
 	
-	!setparam("XPRS_verbose", true);
+	writeln("[MOS] Solving TMILP ...");
+	
+	declarations
+		INSTANCEFILE: string;
+		OUTFILE: string;
+	end-declarations
+		
+	if COMPRESS then
+		INSTANCEFILE	:= "zlib.gzip:" + BASENAME + INSTANCE + ".time.txt.gz";
+		OUTFILE			:= "zlib.gzip:" + BASENAME + INSTANCE + ".time.solution.txt.gz";
+	else
+		INSTANCEFILE	:= BASENAME + INSTANCE + ".time.txt";
+		OUTFILE			:= BASENAME + INSTANCE + ".time.solution.txt";
+	end-if
+
 	setparam("XPRS_heurstrategy", 0);
 	setparam("XPRS_presolve", 0);
 	
@@ -35,7 +48,7 @@ model "model"
 	finalize(INDICES);
 	finalize(VEHICLES);
 	
-	writeln("Partial Instances: ", getsize(INDICES));
+	writeln("[MOS] Partial Instances: ", getsize(INDICES));
 	
 	declarations
 		TRIPS: array(INDICES) of set of string;
@@ -118,10 +131,7 @@ model "model"
 	forall(route in TOTAL_ROUTES) finalize(ROUTE_TRIPS(route));
 	forall(index in INDICES) finalize(FIXED_ROUTES(index));
 	
-	writeln("Customers: ", getsize(TOTAL_CUSTOMERS));
-	writeln("Vehicles: ", getsize(VEHICLES));
-	writeln("Routes: ", getsize(TOTAL_ROUTES));
-	writeln("Trips: ", getsize(TOTAL_TRIPS));
+	writeln("[MOS] Customers: ", getsize(TOTAL_CUSTOMERS), ", Vehicles: ", getsize(VEHICLES), ", Routes: ", getsize(TOTAL_ROUTES), ", Trips: ", getsize(TOTAL_TRIPS));
 	
 	!!!
 	
@@ -175,7 +185,7 @@ model "model"
 	forall(v in TOTAL_NODES) finalize(TOTAL_NIN(v));
 	forall(v in TOTAL_NODES) finalize(TOTAL_NOUT(v));
 	
-	writeln("Data read.");
+	writeln("[MOS] Data read");
 	
 	!!!
 	
@@ -216,15 +226,12 @@ model "model"
 	
 	while(index > 1) do
 	
-		writeln("Solving Partial Instance ", index);
+		writeln("[MOS] Solving Partial Instance ", index, " ...");
 		
 		NODES(index) := TRIPS(index) + ENDPOINTS(index);
 		finalize(NODES(index));
 		VERTICES(index) := {DS(index), DE(index)} + NODES(index);
 		finalize(VERTICES(index));
-		
-		writeln("[", index, "] Customers: ", getsize(CUSTOMERS(index)), ", Routes: ", getsize(ROUTES(index)), ", Trips: ", getsize(TRIPS(index)));
-		writeln("[", index, "] Endpoints: ", getsize(ENDPOINTS(index)), ", Vertices: ", getsize(VERTICES(index)));
 
 		NIN(DS(index)) := {};
 		NIN(DE(index)) := NODES(index);
@@ -247,7 +254,7 @@ model "model"
 
 	end-do
 	
-	writeln("Partial Instance ", index);
+	writeln("[MOS] Solving Partial Instance ", index, " ...");
 	
 	NODES(index) := VEHICLES + TRIPS(index) + ENDPOINTS(index);
 	finalize(NODES(index));
@@ -259,9 +266,6 @@ model "model"
 	finalize(NODES_VP_1);
 	NODES_TP_1 := TRIPS(index) + ENDPOINTS(index);
 	finalize(NODES_TP_1);
-	
-	writeln("[", index, "] Customers: ", getsize(CUSTOMERS(index)), ", Routes: ", getsize(ROUTES(index)), ", Trips: ", getsize(TRIPS(index)));
-	writeln("[", index, "] Endpoints: ", getsize(ENDPOINTS(index)), ", Vertices: ", getsize(VERTICES(index)));
 	
 	NIN(DS(index)) := {};
 	NIN(DE(index)) := NODES(index);
@@ -295,12 +299,9 @@ model "model"
 	TotalCost		:= CarNumber * VEHICLE_COST + TripCost + DeadheadCost;
 	TripNumber		:= sum(t in TOTAL_TRIPS, s in NIN(t)) sol_x(s, t);
 	
-	writeln("Total Cost: ", TotalCost);
-	writeln("Number of Cars: ", CarNumber);
-	writeln("Trip Cost: ", TripCost);
-	writeln("Deadhead Cost: ", DeadheadCost);
-	writeln("Route Cost: ", RouteCost);
-	writeln("Number of Trips: ", TripNumber);
+	writeln("[MOS] Total Cost: ", TotalCost);
+	writeln("[MOS] Number of Cars: ", CarNumber);
+	writeln("[MOS] Trip Cost: ", TripCost, ", Deadhead Cost: ", DeadheadCost, ", Route Cost: ", RouteCost);
 	
 	declarations
 		TOTAL_DUTIES: dynamic array(VEHICLES) of list of string;
@@ -311,6 +312,8 @@ model "model"
 	initializations to OUTFILE
 		TOTAL_DUTIES as 'Duties';
 	end-initializations
+	
+	writeln("[MOS] Solution successfully saved to ", OUTFILE);
 	
 	!!!
 	
@@ -386,18 +389,15 @@ model "model"
 																VehicleThreshold	:= sum(s in NOUT(DS(index))) x(DS(index), s) <= getsize(VEHICLES);
 			
 			loadprob(TotalCost);
-			writeln("[", index, "] Model loaded.");
 			
 			minimize(TotalCost);
 			
 			if not getprobstat = XPRS_OPT then
-				writeln("Partial Instance ", index, " could not be solved.");
-				exit(0);
+				writeln("[ERROR] Partial Instance ", index, " could not be solved.");
+				exit(5);
 			end-if
 			
-			writeln("[", index, "] Total Cost: ", getsol(TotalCost));
-			writeln("[", index, "] Number of Cars: ", getsol(CarNumber), ", Number of Trips: ", getsol(TripNumber));
-			writeln("[", index, "] Trip Cost: ", getsol(TripCost), ", Deadhead Cost: ", getsol(DeadheadCost), ", Route Cost: ", getsol(RouteCost));
+			writeln("[MOS] ", index, ": Total Cost: ", getsol(TotalCost), ", Number of Cars: ", getsol(CarNumber));
 			
 			forall(s in VERTICES(index), t in NOUT(s))			sol_x(s, t)	:= getsol(x(s, t));
 			forall(s in NODES(index), t in NOUT(s)-{DE(index)})	sol_z(s, t)	:= getsol(z(s, t));
@@ -422,8 +422,6 @@ model "model"
 			forall(s in TRIPS(index))							Fmin(s);
 
 			loadprob(FuelSum);
-		
-			!load_solution(sol_x, sol_z, sol_e);
 		
 			minimize(FuelSum);
 			
@@ -509,18 +507,15 @@ model "model"
 			forall(s in TRIPS(index))							Fmin(s)				:= FMIN(s) <= e(s) + (1 - x(s, DE(index)));
 			
 			loadprob(TotalCost);
-			writeln("[", index, "] Model loaded.");
 			
 			minimize(TotalCost);
 			
 			if not getprobstat = XPRS_OPT then
-				writeln("Partial Instance ", index, " could not be solved.");
-				exit(0);
+				writeln("[ERROR] Partial Instance ", index, " could not be solved.");
+				exit(5);
 			end-if
 			
-			writeln("[", index, "] Total Cost: ", getsol(TotalCost));
-			writeln("[", index, "] Number of Cars: ", getsol(CarNumber), ", Number of Trips: ", getsol(TripNumber));
-			writeln("[", index, "] Trip Cost: ", getsol(TripCost), ", Deadhead Cost: ", getsol(DeadheadCost), ", Route Cost: ", getsol(RouteCost));
+			writeln("[MOS] ", index, ": Total Cost: ", getsol(TotalCost), ", Number of Cars: ", getsol(CarNumber));
 			
 			forall(s in VERTICES(index), t in NOUT(s))			sol_x(s, t)	:= getsol(x(s, t));
 			forall(s in NODES(index), t in NOUT(s)-{DE(index)})	sol_z(s, t)	:= getsol(z(s, t));
