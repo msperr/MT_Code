@@ -53,15 +53,15 @@ class Instance:
     
     @property
     def vehicles(self):
-        return self._vehicles
+        return list(self._vehicles)
     
     @property
     def trips(self):
-        return self._trips
+        return list(self._trips)
 
     @property
     def refuelpoints(self):
-        return self._refuelpoints
+        return list(self._refuelpoints)
     
     @property
     def vertices(self):
@@ -86,6 +86,10 @@ class Instance:
     @property
     def dictionary(self):
         return entities.get_dict(self.extendedvertices)
+    
+    @property
+    def customers(self):
+        return list(self._customers.iterkeys())
     
     def customer(self, t):
         return self._customertable[self._index[t]];
@@ -117,6 +121,11 @@ class Instance:
         return self._fuelpermeter * (self._dist[self._index[s], self._index[t]] if t else 0.0 if self._index[s] < len(self._vehicles) else s.distance)
 
     def cost(self, s, t=None):
+        try:
+            index = self._index[s]
+        except(KeyError):
+            print s
+        
         return (self._costpercar if self._index[s] < len(self._vehicles) else 0) + self._costpermeter * self._dist[self._index[s], self._index[t]] if t else 0.0 if self._index[s] < len(self._vehicles) else self._costpermeter * s.distance
 
     def route_cost(self, r):

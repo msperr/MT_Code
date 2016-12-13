@@ -25,9 +25,6 @@ model "model"
 		INSTANCEFILE	:= BASENAME + INSTANCE + ".time.txt";
 		OUTFILE			:= BASENAME + INSTANCE + ".time.solution.txt";
 	end-if
-
-	setparam("XPRS_heurstrategy", 0);
-	setparam("XPRS_presolve", 0);
 	
 	!!!
 
@@ -232,6 +229,8 @@ model "model"
 		finalize(NODES(index));
 		VERTICES(index) := {DS(index), DE(index)} + NODES(index);
 		finalize(VERTICES(index));
+		
+		writeln("[MOS] ", index, ": Vertices: ", getsize(VERTICES(index)), ", Endpoints: ", getsize(ENDPOINTS(index)));
 
 		NIN(DS(index)) := {};
 		NIN(DE(index)) := NODES(index);
@@ -243,10 +242,13 @@ model "model"
 		forall(v in VERTICES(index)) finalize(NOUT(v));
 		
 		forall(m in ROUTES(index)) CR_mod(m) := CR(m) + sum(t in ROUTE_TRIPS(m) - TRIPS(index)) CT(t);
-		
-		solve_partial_instance(index);
-		
-		determine_duties(NODES(index));
+			
+		if(getsize(TRIPS(index)) >= 1) then
+			solve_partial_instance(index);
+			determine_duties(NODES(index));
+		else
+			DUTIES(index) := union(t in ENDPOINTS(index)) {[t]};	
+		end-if
 		
 		determine_endpoints(DUTIES(index));
 
@@ -266,6 +268,8 @@ model "model"
 	finalize(NODES_VP_1);
 	NODES_TP_1 := TRIPS(index) + ENDPOINTS(index);
 	finalize(NODES_TP_1);
+	
+	writeln("[MOS] ", index, ": Vertices: ", getsize(VERTICES(index)), ", Endpoints: ", getsize(ENDPOINTS(index)));
 	
 	NIN(DS(index)) := {};
 	NIN(DE(index)) := NODES(index);
@@ -393,7 +397,7 @@ model "model"
 			minimize(TotalCost);
 			
 			if not getprobstat = XPRS_OPT then
-				writeln("[ERROR] Partial Instance ", index, " could not be solved.");
+				writeln("[ERROR] Partial Instance ", index, " could not be solved");
 				exit(5);
 			end-if
 			
@@ -511,7 +515,7 @@ model "model"
 			minimize(TotalCost);
 			
 			if not getprobstat = XPRS_OPT then
-				writeln("[ERROR] Partial Instance ", index, " could not be solved.");
+				writeln("[ERROR] Partial Instance ", index, " could not be solved");
 				exit(5);
 			end-if
 			
@@ -537,17 +541,17 @@ model "model"
 			r: string;
 		end-declarations
 		
-		forall(t in Nodes | sol_x(DS(index), t) = 1) do
+		forall(t in Nodes | sol_x(DS(index), t) > 0.5) do
 			PARTIAL_DUTIES(t) := [t];
 			s1 := t;
 			while(true) do
 				s2 := DE(index);
-				forall(v in NOUT(s1) | sol_x(s1, v) = 1) s2 := v;
+				forall(v in NOUT(s1) | sol_x(s1, v) > 0.5) s2 := v;
 				if s2 = DE(index) then
 					break;
 				end-if
 				r := '';
-				if sol_z(s1, s2) = 1 then
+				if sol_z(s1, s2) > 0.5 then
 					r := REFUELPOINT(s1, s2);
 					PARTIAL_DUTIES(t) += [r, s2];
 				else
