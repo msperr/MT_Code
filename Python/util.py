@@ -35,3 +35,26 @@ def accumulate(iterable):
     for element in it:
         total = total + element
         yield total
+
+class Printer:
+    
+    verbose = True
+    statistics = True
+    
+    def __init__(self, verbose, statistics):
+        self.verbose = verbose
+        self.statistics = statistics
+    
+    def write(self, string):
+        print '[INFO]', string
+    
+    def writeWarn(self, string):
+        print '[WARN]', string
+    
+    def writeInfo(self, string):
+        if self.verbose:
+            print string
+    
+    def writeStat(self, string):
+        if self.statistics:
+            print string

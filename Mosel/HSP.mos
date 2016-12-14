@@ -273,12 +273,12 @@ model "model"
 			t := s;
 			while(true) do
 				u := DE;
-				forall(v in NOUT(t) | sol_x(t, v) = 1) u := v;
+				forall(v in NOUT(t) | sol_x(t, v) > 0.5) u := v;
 				if u = DE then
 					break;
 				end-if
 				r := '';
-				if sol_z(t, u) = 1 then
+				if sol_z(t, u) > 0.5 then
 					r := REFUELPOINT(t, u);
 					DUTIES(s) += [r, u];
 				else
