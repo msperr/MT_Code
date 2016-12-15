@@ -75,6 +75,7 @@ if __name__ == '__main__':
         storage.save_instance_to_json(instancefile, instance)
         print 'Instance successfully saved to %s' % instancefile
     
+    graph = None
     if not export:
         graphfile = config['data']['base'] + instancename + '.graph'
         if path.isfile(graphfile + '.json.gz'):

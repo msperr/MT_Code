@@ -1,5 +1,4 @@
 from argparse import ArgumentParser
-import random
 from os import path
 import subprocess
 from datetime import timedelta
@@ -64,8 +63,7 @@ def determine_improved_cost(solution):
     
     return dict([(c, instance.route_cost(route) + sum(cost.get(t) for t in instance._routes.get(route))) for c, route in solution.customers.iteritems()])
 
-def determine_customers(instance, customers, ratio):
-    number = 5
+def determine_customers(instance, customers, ratio, maxcustomers):
     if not customers:
         return None
     customer = max(customers, key = lambda k: ratio[k])
@@ -73,19 +71,19 @@ def determine_customers(instance, customers, ratio):
     customers = filter(lambda k: instance.earliest_starttime(k) >= time-timedelta(hours=1) and instance.latest_starttime(k) <= time+timedelta(hours=1), customers)
     if not customers:
         print '[WARN] No critical customers', customer, 'Start', instance.earliest_starttime(customer), 'Finish', instance.latest_starttime(customer)
-    return sorted(customers, key = lambda k: ratio[k], reverse = True)[0:min(number, len(customers))]
+    return sorted(customers, key = lambda k: ratio[k], reverse = True)[0:min(maxcustomers, len(customers))]
 
 if __name__ == '__main__':
     
     parser = ArgumentParser()
     parser.add_argument('solution', type=str)
+    parser.add_argument('-m', '--maxcustomers', type=int, default=5, dest='maxcustomers')
     parser.add_argument('--compress', action='store_true')
     parser.add_argument('--statistics', action='store_true')
     parser.add_argument('--verbose', action='store_true')
     args = parser.parse_args()
     
     printer = Printer(verbose=args.verbose, statistics=args.statistics)
-    
     compress = '' if args.compress else '.gz'
     solutionname = args.solution
     instancename = path.join(path.dirname(solutionname), path.basename(solutionname).split('.')[0])
@@ -176,7 +174,7 @@ if __name__ == '__main__':
             solution = storage.load_solution_from_xpress(solutionfile, instance)
             printer.writeInfo('Solution successfully loaded from %s' % solutionfile)
     
-        critical_customers = determine_customers(instance, customers, ratio)
+        critical_customers = determine_customers(instance, customers, ratio, args.maxcustomers)
         if not critical_customers:
             customer = max(customers, key = lambda k: ratio[k])
             customers.remove(customer)

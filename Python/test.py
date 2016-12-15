@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+import itertools
 import os
 import numpy
 import util
@@ -74,7 +75,7 @@ if __name__ == '__main__2':
     input1 = '2,3,4'
     input2 = '2'
 
-if __name__ == '__main__':
+if __name__ == '__main__2':
     instancefile = config['data']['base'] + r'TU_C50\instance.json.gz'
     solutionfile = config['data']['base'] + r'TU_C50\instance.split4.time.fuelsolution.txt.gz'
     improvedfile = config['data']['base'] + r'TU_C50\instance.split4.time.hsp.solution.txt.gz'
@@ -85,4 +86,17 @@ if __name__ == '__main__':
     taskgraph.split_taskgraph_subproblem(instance, graph, solution, [0,5,9])
     
     improved = storage.load_partial_solution_from_xpress(improvedfile, solution, instance)
+
+if __name__ == '__main__2':
+    set1 = ['A', 'B', 'C', 'D']
+    set2 = ['E', 'F']
+    for i, j in enumerate(itertools.chain(set1, set2)):
+        print i, j
+
+if __name__ == '__main__':
+    times = [1443670100000, 1443673487000, 1443670183000, 1443673846000, 1443671059000, 1443674285000]
+    time2 = [1443670100000, 1443673487000]
+    
+    print [util.to_datetime(time) for time in times]
+    print [util.to_datetime(time) for time in time2]
     

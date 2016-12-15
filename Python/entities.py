@@ -55,7 +55,7 @@ class Trip:
     distance = 0.0
     servicedrive = False    
 
-    def __init__(self, location_id, vehicle_vin, start_time, finish_time, distance, servicedrive, start_loc=None, start_longitude=0.0, start_latitude=0.0, finish_loc=None, finish_longitude=0.0, finish_latitude=0.0):
+    def __init__(self, vehicle_vin, start_time, finish_time, distance, start_loc=None, start_longitude=0.0, start_latitude=0.0, finish_loc=None, finish_longitude=0.0, finish_latitude=0.0, location_id=-1, servicedrive=False):
         self.location_id = location_id
         self.vehicle_vin = vehicle_vin
         self.start_time = start_time

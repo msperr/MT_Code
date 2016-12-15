@@ -33,7 +33,7 @@ class Otp(object):
             'mode': ','.join(modes),
             'arriveBy': 'false',
             'wheelchair': 'false',
-            'locale': 'en'
+            'locale': 'en',
         }
 
         if maxWalkDistance != None:

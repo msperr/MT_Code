@@ -80,20 +80,21 @@ model "model"
 	end-declarations
 	
 	TOTAL_TRIPS := union(index in INDICES) TRIPS(index);
-	finalize(TOTAL_TRIPS);
+	!finalize(TOTAL_TRIPS);
 	TOTAL_SPLITPOINTS := union(index in INDICES) SPLITPOINTS(index);
-	finalize(TOTAL_SPLITPOINTS);
+	!finalize(TOTAL_SPLITPOINTS);
 	TOTAL_CUSTOMERS := union(index in INDICES) CUSTOMERS(index);
-	finalize(TOTAL_CUSTOMERS);
+	!finalize(TOTAL_CUSTOMERS);
 	TOTAL_NODES := VEHICLES + TOTAL_TRIPS + TOTAL_SPLITPOINTS;
-	finalize(TOTAL_NODES);
+	!finalize(TOTAL_NODES);
 	TOTAL_NODES_VT := VEHICLES + TOTAL_TRIPS;
-	finalize(TOTAL_NODES_VT);
+	!finalize(TOTAL_NODES_VT);
 	TOTAL_NODES_VP := VEHICLES + TOTAL_SPLITPOINTS;
-	finalize(TOTAL_NODES_VP);
+	!finalize(TOTAL_NODES_VP);
 	TOTAL_NODES_TP := TOTAL_TRIPS + TOTAL_SPLITPOINTS;
-	finalize(TOTAL_NODES_TP);
+	!finalize(TOTAL_NODES_TP);
 	TOTAL_VERTICES := union(index in INDICES){DS(index), DE(index)} + TOTAL_NODES;
+	!finalize(TOTAL_VERTICES);
 	
 	declarations
 		REFUELPOINT: array(TOTAL_NODES, TOTAL_NODES_TP) of string;
@@ -129,9 +130,6 @@ model "model"
 	!!!
 	
 	declarations
-		TOTAL_NIN:  array(TOTAL_VERTICES) of set of string;
-		TOTAL_NOUT: array(TOTAL_VERTICES) of set of string;
-		
 		F0: dynamic array(TOTAL_NODES_VP) of real;
 		FT: array(TOTAL_NODES_TP) of real;
 		FE: array(TOTAL_NODES, TOTAL_NODES_TP) of real;
@@ -150,9 +148,6 @@ model "model"
 	end-declarations
 
 	initializations from INSTANCEFILE
-		TOTAL_NIN as 'Nin';
-		TOTAL_NOUT as 'Nout';
-		
 		F0;
 		FT;
 		FE;
@@ -170,11 +165,20 @@ model "model"
 		CR;
 	end-initializations
 	
+	declarations
+		TOTAL_NIN:  dynamic array(TOTAL_VERTICES) of set of string;
+		TOTAL_NOUT: dynamic array(TOTAL_VERTICES) of set of string;
+	end-declarations
+	
+	initializations from INSTANCEFILE
+		TOTAL_NIN as 'Nin';
+		TOTAL_NOUT as 'Nout';
+	end-initializations
+	
 	if CV <> -1 then
 		VEHICLE_COST := CV;
 	end-if
-		
-	
+
 	forall(v in TOTAL_NODES) finalize(TOTAL_NIN(v));
 	forall(v in TOTAL_NODES) finalize(TOTAL_NOUT(v));
 	
@@ -354,6 +358,10 @@ model "model"
 		forall(s in NODES(index), t in NOUT(s)-{DE(index)})	create(z(s, t));
 		forall(t in NODES(index))							create(e(t));
 		forall(m in ROUTES(index))							create(u(m));
+		
+		writeln("Routes: ", ROUTES(index));
+		forall(m in ROUTES(index)) writeln("Route: ", m, ": ", ROUTE_TRIPS(m));
+		forall(m in ROUTES(index)) writeln("Route: ", m, ": ", ROUTE_TRIPS(m) - TRIPS(index));
 		
 		with mpproblem do
 			CarNumber 		:= sum(s in NODES(index)) x(DS(index), s) - sum(s in ENDPOINTS(index)) x(s, DE(index));
