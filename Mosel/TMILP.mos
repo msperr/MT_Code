@@ -133,8 +133,8 @@ model "model"
 	!!!
 	
 	declarations
-		TOTAL_NIN:  array(TOTAL_VERTICES) of set of string;
-		TOTAL_NOUT: array(TOTAL_VERTICES) of set of string;
+		TOTAL_NIN:  array(TOTAL_NODES + {TOTAL_DS, TOTAL_DE}) of set of string;
+		TOTAL_NOUT: array(TOTAL_NODES + {TOTAL_DS, TOTAL_DE}) of set of string;
 		
 		F0: dynamic array(TOTAL_NODES_VP) of real;
 		FT: array(TOTAL_NODES_TP) of real;
@@ -300,12 +300,12 @@ model "model"
 	TripCost		:= sum(t in TOTAL_TRIPS, s in NIN(t)) (sol_x(s, t) * CT(t));
 	DeadheadCost	:= sum(t in TOTAL_NODES_TP, s in NIN(t) - union(i in INDICES) {DS(i)}) (sol_x(s, t) * CE(s, t) + sol_z(s, t) * CD(s, t));
 	RouteCost		:= sum(m in TOTAL_ROUTES) sol_u(m) * CR(m);
-	TotalCost		:= CarNumber * VEHICLE_COST + TripCost + DeadheadCost;
+	TotalCost		:= CarNumber * VEHICLE_COST + TripCost + DeadheadCost + RouteCost;
 	TripNumber		:= sum(t in TOTAL_TRIPS, s in NIN(t)) sol_x(s, t);
 	
 	writeln("[MOS] Total Cost: ", TotalCost);
 	writeln("[MOS] Number of Cars: ", CarNumber);
-	writeln("[MOS] Trip Cost: ", TripCost, ", Deadhead Cost: ", DeadheadCost, ", Route Cost: ", RouteCost);
+	writeln("[MOS] Trip Cost: ", TripCost, ", Deadhead Cost: ", DeadheadCost, ", Route Cost: ", RouteCost, ", Number of Trips: ", TripNumber);
 	
 	declarations
 		TOTAL_DUTIES: dynamic array(VEHICLES) of list of string;

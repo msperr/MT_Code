@@ -136,7 +136,9 @@ def split_taskgraph_single(G, startpoints, endpoints, splittime, index):
                 G.remove_edge(startpoint, endpoint)
     return G, splitpoints
 
-def split_taskgraph_customer(instance, G, timepoints):  
+def split_taskgraph_customer(instance, graph, timepoints):
+    
+    graph_customer = networkx.DiGraph(data = graph)
     
     splitpoint_list = []
     trip_list = []
@@ -154,7 +156,7 @@ def split_taskgraph_customer(instance, G, timepoints):
                 startpoints.append(trip)
                 partialtrips.append(trip)
         trips = list(endpoints)
-        G, splitpoints = split_taskgraph_single(G, startpoints, endpoints, timepoint, index)
+        graph_customer, splitpoints = split_taskgraph_single(graph_customer, startpoints, endpoints, timepoint, index)
         splitpoint_list.append(splitpoints)
         trip_list.append(partialtrips)
         customer_list.append(set(instance.customer(trip) for trip in partialtrips))
@@ -163,9 +165,11 @@ def split_taskgraph_customer(instance, G, timepoints):
     customer_list.append(set(instance.customer(trip) for trip in trip_list[-1]))
     splitpoint_list.append([])
     
-    return G, splitpoint_list, trip_list, customer_list
+    return graph_customer, splitpoint_list, trip_list, customer_list
 
-def split_taskgraph_time(instance, G, timepoints):
+def split_taskgraph_time(instance, graph, timepoints):
+    
+    graph_time = networkx.DiGraph(data = graph)
     
     splitpoint_list = []
     trip_list = []
@@ -186,7 +190,7 @@ def split_taskgraph_time(instance, G, timepoints):
                 startpoints.append(trip)
                 partialtrips.append(trip)
         trips = list(endpoints)
-        G, splitpoints = split_taskgraph_single(G, startpoints, endpoints, timepoint, index)
+        graph_time, splitpoints = split_taskgraph_single(graph_time, startpoints, endpoints, timepoint, index)
         splitpoint_list.append(splitpoints)
         trip_list.append(partialtrips)
         
@@ -204,7 +208,7 @@ def split_taskgraph_time(instance, G, timepoints):
     customer_list.append(customers)
     splitpoint_list.append([])
     
-    return G, splitpoint_list, trip_list, customer_list, route_list
+    return graph_time, splitpoint_list, trip_list, customer_list, route_list
 
 def split_taskgraph_subproblem(instance, G, solution, customers):
     
@@ -285,7 +289,7 @@ def save_taskgraph_to_xpress(filename, instance, G, compress=None):
         ('CR', ((r, cr) for (r, cr) in instance._routecost.iteritems())),
         ('Customers', (c for c in instance._customers.iterkeys())),
         ('Customer_Routes', ((c, r) for (c, r) in instance._customers.iteritems())),
-        ('Routes', ((r, [xpress.xpress_index(t)]) for (r, t) in instance._routes.iteritems())),
+        ('Routes', ((r, (xpress.xpress_index(t) for t in trips)) for r, trips in instance._routes.iteritems())),
         ('Vehicle_Cost', instance._costpercar)
     ])
     
@@ -327,7 +331,7 @@ def save_split_taskgraph_to_xpress(filename, instance, G, splitpoint_list, trip_
         ('Fmin', ((v, attr['fmin']) for v, attr in G.nodes_iter(data=True) if 'fmin' in attr)),
         ('Fmax', ((v, attr['fmax']) for v, attr in G.nodes_iter(data=True) if 'fmax' in attr)),
         ('Customer_Routes', ((c, r) for (c, r) in instance._customers.iteritems())),
-        ('Routes', ((r, [xpress.xpress_index(t)]) for (r, t) in instance._routes.iteritems())),
+        ('Routes', ((r, (xpress.xpress_index(t) for t in trips)) for r, trips in instance._routes.iteritems())),
         ('Vehicle_Cost', instance._costpercar)
     ])
     

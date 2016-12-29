@@ -31,9 +31,9 @@ if __name__ == '__main__':
     frequency = [1]*24 if args.unit else [0.1, 0.1, 0.15, 0.2, 0.4, 0.65, 0.55, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 1, 1, 1, 0.8, 0.55, 0.45, 0.35, 0.2, 0.15, 0.1]
     printer = util.Printer(statistics=args.statistics, verbose=args.verbose)
     compress = '' if args.compress else '.gz'
-    c_pub = 1.0/300.0
-    c_walk = 1.0/180.0
-    c_time = 1.0/180.0
+    c_pub = 10.0/3.0
+    c_walk = 50.0/9.0
+    c_time = 50.0/9.0
     
     printer.write('Process started')
     

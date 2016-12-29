@@ -105,7 +105,7 @@ class Solution:
 
     def evaluate(self, v=None):
         
-        cost = 0.0
+        cost = 0.0 if v else sum(self.instance.route_cost(route) for route in self.customers.itervalues())
         
         for s, duty in ((v, self.duties[v]),) if v else self.duties.iteritems():
             for t in duty:
@@ -141,6 +141,7 @@ class Solution:
                 s = t
         
         cost_route = sum(self.instance.route_cost(r) for r in self.customers.itervalues())
+        cost += cost_route
                 
         return cost, dist, time, used_vehicles, dist_customer, dist_deadhead, cost_route
 

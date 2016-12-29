@@ -122,7 +122,7 @@ if __name__ == '__main__':
     
     printer.writeInfo('Execute Mosel ...')
     mosel = config['mosel'] + 'MMILP_E.mos'
-    i = subprocess.call(['mosel', mosel, 'INSTANCE=%s,SOLUTION=%s' % (instancename, solutionname)])
+    i = subprocess.call(['mosel', mosel, 'INSTANCE=%s,SOLUTION=%s,COMPRESS=%s' % (instancename, solutionname, 'false' if args.compress else 'true')])
     if i != 0:
         raise RuntimeError('MMILP_E failed')
     printer.writeInfo('Mosel finished')
@@ -154,7 +154,8 @@ if __name__ == '__main__':
     count = 1
     evaluate_cost = []
     hspfile = config['data']['base'] + solutionname + '.hsp.solution.txt%s' % compress
-    outputfile = config['data']['base'] + args.solution + '.solution.txt%s' % compress
+    output = path.splitext(args.solution)[0] + '.iterative'
+    outputfile = config['data']['base'] + output + '.solution.txt%s' % compress
     
     while customers:
         
@@ -165,7 +166,7 @@ if __name__ == '__main__':
         if count > 2:
             printer.writeInfo('Execute Mosel ...')
             mosel = config['mosel'] + 'MMILP_E.mos'
-            i = subprocess.call(['mosel', mosel, 'INSTANCE=%s,SOLUTION=%s' % (instancename, solutionname)]) 
+            i = subprocess.call(['mosel', mosel, 'INSTANCE=%s,SOLUTION=%s,COMPRESS=%s' % (instancename, solutionname, 'false' if args.compress else 'true')]) 
             if i != 0:
                 raise RuntimeError('MMILP_E failed')
             printer.writeInfo('Mosel finished')
@@ -198,7 +199,7 @@ if __name__ == '__main__':
     
         printer.writeInfo('Executing Mosel ...')
         mosel = config['mosel'] + 'HSP.mos'
-        i = subprocess.call(['mosel', mosel, 'INSTANCE=%s' % solutionname])
+        i = subprocess.call(['mosel', mosel, 'INSTANCE=%s,COMPRESS=%s' % (solutionname, 'false' if args.compress else 'true')])
         if i != 0:
             printer.writeWarn('HSP failed')
             continue
