@@ -1,0 +1,76 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClInclude Include="Instance.h" />
+    <ClInclude Include="SchedulingDecompAlgo.h" />
+    <ClInclude Include="SchedulingDecompApp.h" />
+    <ClInclude Include="utils.h" />
+    <ClInclude Include="py_dict.h">
+      <Filter>python</Filter>
+    </ClInclude>
+    <ClInclude Include="py_shared_ptr.h">
+      <Filter>python</Filter>
+    </ClInclude>
+    <ClInclude Include="py_list.h">
+      <Filter>python</Filter>
+    </ClInclude>
+    <ClInclude Include="py_utils.h">
+      <Filter>python</Filter>
+    </ClInclude>
+    <ClInclude Include="simple_vector.h">
+      <Filter>data structures</Filter>
+    </ClInclude>
+    <ClInclude Include="simple_matrix.h">
+      <Filter>data structures</Filter>
+    </ClInclude>
+    <ClInclude Include="compressed_matrix.h">
+      <Filter>data structures</Filter>
+    </ClInclude>
+    <ClInclude Include="py_object.h">
+      <Filter>python</Filter>
+    </ClInclude>
+    <ClInclude Include="py_int.h">
+      <Filter>python</Filter>
+    </ClInclude>
+    <ClInclude Include="py_string.h">
+      <Filter>python</Filter>
+    </ClInclude>
+    <ClInclude Include="SchedulingDecompAppSolveRelaxed.h" />
+    <ClInclude Include="label.h" />
+    <ClInclude Include="SchedulingDecompAppSolveRelaxedBoost.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="Instance.cpp" />
+    <ClCompile Include="module.cpp" />
+    <ClCompile Include="SchedulingDecompAlgo.cpp" />
+    <ClCompile Include="SchedulingDecompApp.cpp" />
+    <ClCompile Include="py_shared_ptr.cpp">
+      <Filter>python</Filter>
+    </ClCompile>
+    <ClCompile Include="py_utils.cpp">
+      <Filter>python</Filter>
+    </ClCompile>
+    <ClCompile Include="py_object.cpp">
+      <Filter>python</Filter>
+    </ClCompile>
+    <ClCompile Include="py_int.cpp">
+      <Filter>python</Filter>
+    </ClCompile>
+    <ClCompile Include="py_string.cpp">
+      <Filter>python</Filter>
+    </ClCompile>
+    <ClCompile Include="utils.cpp" />
+    <ClCompile Include="SchedulingDecompAppExportSolution.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <CudaCompile Include="InstanceBuild.cu" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="python">
+      <UniqueIdentifier>{4a628a93-0dca-466e-81ce-c7edc8b2bead}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="data structures">
+      <UniqueIdentifier>{e6d14fca-6778-4e4a-af73-8ae5cb14c9a2}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

@@ -1,0 +1,142 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{396629FA-E293-42C9-993B-7F01017F2673}</ProjectGuid>
+    <RootNamespace>scheduling_cpp</RootNamespace>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v120</PlatformToolset>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v120</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+    <Import Project="$(VCTargetsPath)\BuildCustomizations\CUDA 7.0.props" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <TargetExt>.pyd</TargetExt>
+    <OutDir>$(SolutionDir)$(Platform)-$(PlatformToolset)-$(Configuration)\</OutDir>
+    <IntDir>$(Platform)-$(PlatformToolset)-$(Configuration)\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <TargetExt>.pyd</TargetExt>
+    <OutDir>$(SolutionDir)$(Platform)-$(PlatformToolset)-$(Configuration)\</OutDir>
+    <IntDir>$(Platform)-$(PlatformToolset)-$(Configuration)\</IntDir>
+    <IncludePath>$(IncludePath)</IncludePath>
+    <LibraryPath>$(LibraryPath)</LibraryPath>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <SDLCheck>true</SDLCheck>
+      <AdditionalIncludeDirectories>..\Dip-0.92.2\CoinUtils\src;..\Dip-0.92.2\Cgl\src;..\Dip-0.92.2\Cgl\src\CglClique;..\Dip-0.92.2\Cgl\src\CglFlowCover;..\Dip-0.92.2\Cgl\src\CglGomory;..\Dip-0.92.2\Cgl\src\CglKnapsackCover;..\Dip-0.92.2\Cgl\src\CglMixedIntegerRounding;..\Dip-0.92.2\Cgl\src\CglMixedIntegerRounding2;..\Dip-0.92.2\Cgl\src\CglOddHole;..\Dip-0.92.2\Cgl\src\CglPreProcess;..\Dip-0.92.2\Cgl\src\CglProbing;..\Dip-0.92.2\Cgl\src\CglTwomir;..\Dip-0.92.2\Clp\src;..\Dip-0.92.2\Cbc\src;..\Dip-0.92.2\Osi\src\Osi;..\Dip-0.92.2\Clp\src\OsiClp;..\Dip-0.92.2\Cbc\src\OsiCbc;..\Dip-0.92.2\Alps\src;..\Dip-0.92.2\Dip\src;..\OGDF\include;C:\Python27\include;C:\Python27\Lib\site-packages\numpy\core\include;C:\ProgramData\NVIDIA Corporation\CUDA Samples\v7.0\common\inc;C:\Libraries\boost_1_60_0;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+      <PreprocessorDefinitions>_DEBUG;OGDF_DEBUG;_WINDLL;_SCL_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <Link>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalLibraryDirectories>C:\Python27\libs;$(OutDir);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>libCoinUtils.lib;libCgl.lib;libClp.lib;libCbc.lib;libCbcSolver.lib;libOsi.lib;libOsiClp.lib;libOsiCbc.lib;libAlps.lib;libDecomp.lib;ogdf.lib;cudart.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+    <CudaCompile>
+      <CodeGeneration>compute_30,sm_30</CodeGeneration>
+      <MaxRegCount>32</MaxRegCount>
+    </CudaCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <AdditionalIncludeDirectories>..\..\lib\Dip-0.92.2\CoinUtils\src;..\..\lib\\Dip-0.92.2\Cgl\src;..\..\lib\\Dip-0.92.2\Cgl\src\CglClique;..\..\lib\\Dip-0.92.2\Cgl\src\CglFlowCover;..\..\lib\\Dip-0.92.2\Cgl\src\CglGomory;..\..\lib\\Dip-0.92.2\Cgl\src\CglKnapsackCover;..\..\lib\\Dip-0.92.2\Cgl\src\CglMixedIntegerRounding;..\..\lib\\Dip-0.92.2\Cgl\src\CglMixedIntegerRounding2;..\..\lib\\Dip-0.92.2\Cgl\src\CglOddHole;..\..\lib\\Dip-0.92.2\Cgl\src\CglPreProcess;..\..\lib\\Dip-0.92.2\Cgl\src\CglProbing;..\..\lib\Dip-0.92.2\Cgl\src\CglTwomir;..\..\lib\\Dip-0.92.2\Clp\src;..\..\lib\\Dip-0.92.2\Cbc\src;..\..\lib\\Dip-0.92.2\Osi\src\Osi;..\..\lib\\Dip-0.92.2\Clp\src\OsiClp;..\..\lib\\Dip-0.92.2\Cbc\src\OsiCbc;..\..\lib\\Dip-0.92.2\Alps\src;..\..\lib\Dip-0.92.2\Dip\src;..\OGDF\include;C:\Python27\include;C:\Python27\Lib\site-packages\numpy\core\include;C:\ProgramData\NVIDIA Corporation\CUDA Samples\v7.0\common\inc;..\..\lib\boost_1_60_0;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
+      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <OpenMPSupport>true</OpenMPSupport>
+    </ClCompile>
+    <Link>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <AdditionalLibraryDirectories>C:\Python27\libs;$(OutDir);$(OutDir);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>libCoinUtils.lib;libCgl.lib;libClp.lib;libCbc.lib;libCbcSolver.lib;libOsi.lib;libOsiClp.lib;libOsiCbc.lib;libAlps.lib;libDecomp.lib;cudart.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+    <CudaCompile>
+      <CodeGeneration>compute_30,sm_30</CodeGeneration>
+    </CudaCompile>
+    <CudaCompile>
+      <MaxRegCount>32</MaxRegCount>
+    </CudaCompile>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClInclude Include="compressed_matrix.h" />
+    <ClInclude Include="py_int.h" />
+    <ClInclude Include="Instance.h" />
+    <ClInclude Include="py_dict.h" />
+    <ClInclude Include="py_list.h" />
+    <ClInclude Include="py_object.h" />
+    <ClInclude Include="py_string.h" />
+    <ClInclude Include="py_utils.h" />
+    <ClInclude Include="py_shared_ptr.h" />
+    <ClInclude Include="SchedulingDecompAlgo.h" />
+    <ClInclude Include="SchedulingDecompApp.h" />
+    <ClCompile Include="SchedulingDecompAppExportSolution.cpp" />
+    <ClInclude Include="SchedulingDecompAppSolveRelaxed.h" />
+    <ClInclude Include="SchedulingDecompAppSolveRelaxedBoost.h" />
+    <ClInclude Include="simple_matrix.h" />
+    <ClInclude Include="simple_vector.h" />
+    <ClInclude Include="utils.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="Instance.cpp" />
+    <ClCompile Include="module.cpp" />
+    <ClCompile Include="py_int.cpp" />
+    <ClCompile Include="py_object.cpp" />
+    <ClCompile Include="py_string.cpp" />
+    <ClCompile Include="py_utils.cpp" />
+    <ClCompile Include="py_shared_ptr.cpp" />
+    <ClCompile Include="SchedulingDecompAlgo.cpp" />
+    <ClCompile Include="SchedulingDecompApp.cpp" />
+    <ClCompile Include="utils.cpp" />
+    <ClInclude Include="label.h">
+      <FileType>CppCode</FileType>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <CudaCompile Include="InstanceBuild.cu" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+    <Import Project="$(VCTargetsPath)\BuildCustomizations\CUDA 7.0.targets" />
+  </ImportGroup>
+</Project>
