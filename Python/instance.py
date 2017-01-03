@@ -1,8 +1,9 @@
 from collections import OrderedDict
-from itertools import izip
+from itertools import izip, chain
 from datetime import timedelta
 
 import numpy
+import itertools
 
 import entities
 
@@ -39,16 +40,24 @@ class Instance:
         self._routes = OrderedDict(routes)
         self._routecost = OrderedDict(routecost)
         
+        routecustomertable, _ = izip(*sorted([(c, r) for (c, rs) in self._customers.iteritems() for r in rs], key=lambda (c, r): r))
+        self._routecustomertable = numpy.array(list(routecustomertable), dtype=numpy.int32)
+        
         self._customertrips = OrderedDict((customer, [trip for route in routes for trip in self._routes.get(route)]) for (customer, routes) in self._customers.iteritems())
         
-        triproutetable, trips = izip(*sorted([(r, t) for (r, ts) in self._routes.iteritems() for t in ts], key=lambda (r,t): (t.start_time, t.duration, t.distance, t.start_loc, t.finish_loc)))
-        tripcustomertable, _ = izip(*sorted([(c, t) for (c, ts) in self._customertrips.iteritems() for t in ts], key=lambda (c,t): (t.start_time, t.duration, t.distance, t.start_loc, t.finish_loc)))
+        #triproutetable, trips = izip(*sorted([(r, t) for (r, ts) in self._routes.iteritems() for t in ts], key=lambda (r,t): (t.start_time, t.duration, t.distance, t.start_loc, t.finish_loc)))
+        #tripcustomertable, _ = izip(*sorted([(c, t) for (c, ts) in self._customertrips.iteritems() for t in ts], key=lambda (c,t): (t.start_time, t.duration, t.distance, t.start_loc, t.finish_loc)))
+        triproutetable, trips = izip(*sorted([(r, t) for (r, ts) in self._routes.iteritems() for t in ts], key=lambda (r,t): (t.vehicle_vin, t.start_time, t.duration, t.distance, t.start_loc, t.finish_loc)))
+        tripcustomertable, _ = izip(*sorted([(c, t) for (c, ts) in self._customertrips.iteritems() for t in ts], key=lambda (c,t): (t.vehicle_vin, t.start_time, t.duration, t.distance, t.start_loc, t.finish_loc)))
         
         self._trips = list(trips)
         self._routetable = numpy.array([-1] * len(self._vehicles) + list(triproutetable), dtype=numpy.int32)
         self._customertable = numpy.array([-1] * len(self._vehicles) + list(tripcustomertable), dtype=numpy.int32)
         self._refuelpoints = list(refuelpoints)
-        self._index = {s: i for i, s in enumerate(self.extendedvertices)}
+        
+        #self._index = {s: i for i, s in enumerate(self.extendedvertices)}
+        self._index = {s: i for i, s in enumerate(chain(sorted(self.vehicles, key = lambda k: k.id), sorted(self.trips, key = lambda k: k.vehicle_vin), sorted(self.refuelpoints, key = lambda k: k.id)))}
+        
         self._initialfuel = numpy.ones((len(vehicles),), dtype=float)
     
     @property

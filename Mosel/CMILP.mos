@@ -598,6 +598,7 @@ model "model"
 			v := getfirst(duty);
 			ep := getlast(duty);
 			if ep in VEHICLES then
+				TOTAL_DUTIES(v) := [];
 				next;
 			end-if
 			cuthead(duty, 1);

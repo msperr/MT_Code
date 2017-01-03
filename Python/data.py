@@ -124,8 +124,6 @@ if __name__ == '__main__':
             printer.writeInfo('Splitting task graph according to customers ...')
             graph_customer, splitpoint_list, trip_list, customer_list = taskgraph.split_taskgraph_customer(instance, graph, split)
             splitpoints = [splitpoint for tmp_list in splitpoint_list for splitpoint in tmp_list]
-            
-            print 'Data', len(splitpoint_list), len(list(s for splitpoints in splitpoint_list for s in splitpoints))
 
             printer.writeStat('Splitpoints: %d' % len(splitpoints))
             for (index, timepoint) in enumerate(split):

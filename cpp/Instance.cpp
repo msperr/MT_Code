@@ -20,11 +20,15 @@ Instance::Instance(py_shared_ptr&& pInstance) : py_object(pInstance) {
 
 void Instance::parse() {
 
+	printf(">> Instance::parse() \n");
+
 	py_dict<> pCustomers = getAttr("_customers");
+	py_dict<> pRoutes = getAttr("_routes");
 	py_list<> pVehicles = getAttr("vehicles");
 	py_list<> pTrips = getAttr("trips");
 	py_list<> pRefuelpoints = getAttr("refuelpoints");
 	py_list<py_object> pVertices = getAttr("vertices");
+
 	py_list<py_list<py_list<py_int>>> pParetoRefuelPoints = getAttr("_paretorefuelpoints");
 
 	cost_per_car = PyFloat_AsDouble(getAttr("_costpercar"));
@@ -33,6 +37,7 @@ void Instance::parse() {
 	refuel_per_second = PyFloat_AsDouble(getAttr("_refuelpersecond"));
 
 	num_customers = pCustomers.size();
+	num_routes = pRoutes.size();
 	num_vehicles = pVehicles.size();
 	num_trips = pTrips.size();
 	num_refuelpoints = pRefuelpoints.size();
@@ -40,12 +45,13 @@ void Instance::parse() {
 	const int num_vertices = num_vehicles + num_trips;
 	const int num_ext_vertices = num_vehicles + num_trips + num_refuelpoints;
 
+	printf("Customers: %d, Routes: %d, Vehicles: %d, Trips: %d, Refuelpoints: %d\n", num_customers, num_routes, num_vehicles, num_trips, num_refuelpoints);
+
 	py_shared_ptr pInitialFuel = getAttr("_initialfuel");
 
 	vehicle_initial_fuel.resize(num_vehicles);
 	for (int s = 0; s < num_vehicles; s++)
 		vehicle_initial_fuel(s) = PyArray_GET<double>(pInitialFuel, s);
-
 
 	py_shared_ptr pTime = getAttr("_time");
 
@@ -54,32 +60,41 @@ void Instance::parse() {
 		for (int t = 0; t < num_ext_vertices; t++)
 			arc_time(s, t) = PyArray_GET<double>(pTime, s, t);
 
-
 	py_shared_ptr pDist = getAttr("_dist");
 
 	arc_dist.resize(num_ext_vertices, num_ext_vertices, num_ext_vertices);
 	for (int s = 0; s < num_ext_vertices; s++)
 		for (int t = 0; t < num_ext_vertices; t++)
 			arc_dist(s, t) = PyArray_GET<double>(pDist, s, t);
-
-
+	
+	py_shared_ptr pRouteCustomerTable = getAttr("_routecustomertable");
 	py_shared_ptr pCustomerTable = getAttr("_customertable");
+	py_shared_ptr pRouteTable = getAttr("_routetable");
 
+	customer_routes.resize(num_customers);
+	route_customer.resize(num_routes);
+	for (int t = 0; t < num_routes; t++) {
+		route_customer(t) = PyArray_GET<int>(pRouteCustomerTable, t);
+		customer_routes(route_customer(t)).push_back(t);
+	}
+
+	// deprecated
 	customer_vertices.resize(num_customers);
+	route_vertices.resize(num_routes);
+
+	customerroute_vertices.resize(num_customers + num_routes);
 	vertex_customer.resize(num_vertices);
+	vertex_route.resize(num_vertices);
 	for (int t = 0; t < num_vertices; t++) {
 		vertex_customer(t) = PyArray_GET<int>(pCustomerTable, t);
-		if (t >= num_vehicles)
+		vertex_route(t) = PyArray_GET<int>(pRouteTable, t);
+		if (t >= num_vehicles) {
+			customerroute_vertices(vertex_customer(t)).push_back(t);
+			customerroute_vertices(vertex_route(t)).push_back(t);
 			customer_vertices(vertex_customer(t)).push_back(t);
+			route_vertices(vertex_route(t)-num_customers).push_back(t);
+		}
 	}
-
-	for (int i = 0; i < num_customers; i++) {
-		printf("customer %d: ", i);
-		for (int t : customer_vertices(i))
-			printf("%d ", t);
-		printf("\n");
-	}
-
 
 	vertex_starttime.resize(num_vertices);
 	for (auto item : pVertices)
@@ -97,11 +112,24 @@ void Instance::parse() {
 	for (auto item : pVertices)
 		vertex_fuel(item.first) = PyFloat_AsDouble(callMethod("fuel", "O", item.second.get()));
 
+	arc_dist.resize(num_ext_vertices, num_ext_vertices, num_ext_vertices);
+	for (int s = 0; s < num_ext_vertices; s++)
+		for (int t = 0; t < num_ext_vertices; t++)
+			arc_dist(s, t) = PyArray_GET<double>(pDist, s, t);
+
 	int numel = 0;
-	for (int t = 0; t < num_vertices; t++)
-		for (int s = 0; s < num_vertices; s++)
-			if ((vertex_customer(s) != vertex_customer(t)) && (vertex_finishtime(s) + arc_time(s, t) <= vertex_starttime(t)))
+	feasible_edge.resize(num_vertices, num_vertices, num_vertices);
+	for (int s = 0; s < num_vertices; s++) {
+		for (int t = 0; t < num_vehicles; t++)
+			feasible_edge(s, t) = false;
+		for (int t = num_vehicles; t < num_vertices; t++) {
+			feasible_edge(s, t) = (vertex_customer(s) != vertex_customer(t) || vertex_route(s) == vertex_route(t)) && vertex_finishtime(s) + arc_time(s, t) <= vertex_starttime(t);
+			if (feasible_edge(s, t))
 				numel++;
+		}
+	}
+
+	printf("Numel: %d\n", numel);
 
 	if (pParetoRefuelPoints.get() != Py_None) {
 
@@ -112,7 +140,7 @@ void Instance::parse() {
 			arc_refuelpoints.appendRow();
 
 			for (int s = 0; s < num_vertices; s++) {
-				if ((vertex_customer(s) != vertex_customer(t)) && (vertex_finishtime(s) + arc_time(s, t) <= vertex_starttime(t))) {
+				if (feasible_edge(s, t)) {
 
 					auto& refuelpoints = arc_refuelpoints.appendElement(s);
 
@@ -129,16 +157,18 @@ void Instance::parse() {
 	customer_type.resize(num_customers);
 	for (int c = 0; c < num_customers; c++)
 		customer_type(c) = unknown_alternatives;
+	
+	printf("<< Instance::parse()\n");
 }
 
 void Instance::analyse() {
 
+	printf(">> Instance::analyse()\n");
+
 	struct lookupcomp {
 
-//		simple_vector<int, cudaMemoryTypeHost>& lookuptable;
 		simple_vector<int>& lookuptable;
 
-//		lookupcomp(simple_vector<int, cudaMemoryTypeHost>& lookuptable) : lookuptable(lookuptable) {}
 		lookupcomp(simple_vector<int>& lookuptable) : lookuptable(lookuptable) {}
 
 		bool operator() (int i, int j) const {
@@ -215,4 +245,6 @@ void Instance::analyse() {
 
 	for (int i = 0; i < sizeof(customer_alternative_type_strings) / sizeof(char*); i++)
 		printf("type %s occures %d times\n", customer_alternative_type_strings[i], customer_alternative_type_counter[i]);
+	
+	printf("<< Instance::analyse()\n");
 }

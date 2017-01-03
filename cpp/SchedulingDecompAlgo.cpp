@@ -8,9 +8,9 @@
 
 #include "math.h"
 
-
 SchedulingAlgoPC::SchedulingAlgoPC(DecompApp* app, UtilParameters& utilParam) : DecompAlgoPC(app, utilParam), branchOnNumberOfVehicles(utilParam.GetSetting("branchOnNumberOfVehicles", false, "CUSTOM")), branchOnLengthOfDuties(utilParam.GetSetting("branchOnLengthOfDuties", false, "CUSTOM")), branchOnAlternativeTrips(utilParam.GetSetting("branchOnAlternativeTrips", false, "CUSTOM")) 
 {
+	printf("SchedulingAlgoPC");
 }
 
 DecompStatus SchedulingAlgoPC::processNode(const AlpsDecompTreeNode* node, const double globalLB, const double globalUB)

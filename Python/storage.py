@@ -63,6 +63,9 @@ def load_instance_from_json(filename, compress=None):
     if 'dist' in data:
         inst._dist = numpy.array(data['dist'], dtype = float)
     
+    if 'paretorefuelpoints' in data:
+        inst._paretorefuelpoints = data['paretorefuelpoints']
+    
     return inst
 
 def save_instance_to_json(filename, instance, compress=None):
@@ -88,6 +91,8 @@ def save_instance_to_json(filename, instance, compress=None):
         data['time'] = instance._time.tolist()
     if not instance._dist is None:
         data['dist'] = instance._dist.tolist()
+    if not instance._paretorefuelpoints is None:
+        data['paretorefuelpoints'] = instance._paretorefuelpoints
         
     if compress is None:
         compress = os.path.splitext(filename)[1] == '.gz'
@@ -195,7 +200,9 @@ def load_solution_from_xpress(filename, instance=None, compress=None):
     sol.assert_valid()
     sol._basename = basename
     
-    sol.fuelstates = sol.determine_fuelstates(solution_dict['Fuel_Min'], solution_dict['Fuel_Max'])
+    if 'Fuel_Min' in solution_dict and 'Fuel_Max' in solution_dict:
+        sol.fuelstates = sol.determine_fuelstates(solution_dict['Fuel_Min'], solution_dict['Fuel_Max'])
+    
     sol.customers = sol.determine_customers()
         
     return sol

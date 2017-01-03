@@ -130,8 +130,10 @@ public:
 				if (!new_cont.customers.insert(app.inst.vertex_customer(s)).second)
 					return false;
 			//new_cont.customers.erase(arc_prop.drop_customers.begin(), arc_prop.drop_customers.end());
-			for (int c : arc_prop.drop_customers)
-				new_cont.customers.erase(c);
+			
+			// TODO: drop_routes
+			//for (int c : arc_prop.drop_customers)
+			//	new_cont.customers.erase(c);
 		}
 
 		return true;

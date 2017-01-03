@@ -52,10 +52,10 @@ struct arc_property
 	double fuel_t; // maybe move to spprc_vertex_property or merge with fuel_r_t
 	double cost_s_r_t;
 
-	vector<int> drop_customers;
+	vector<int> drop_routes;
 
-	arc_property(int index, double fuel_s_t, double fuel_t, double cost_s_t, const set<int>& drop_customers);
-	arc_property(int index, int refuelpoint, double fuel_s_r, double fuel_r, double fuel_r_t, double fuel_t, double cost_s_r_t, const set<int>& drop_customers);
+	arc_property(int index, double fuel_s_t, double fuel_t, double cost_s_t, const set<int>& drop_routes);
+	arc_property(int index, int refuelpoint, double fuel_s_r, double fuel_r, double fuel_r_t, double fuel_t, double cost_s_r_t, const set<int>& drop_routes);
 };
 
 typedef boost::adjacency_list<boost::vecS, boost::vecS, boost::directedS, vertex_property, arc_property, graph_property> boost_graph;
@@ -108,13 +108,15 @@ private:
 	int column_offset_w;
 	int column_offset_v;
 	int column_offset_sum_v;
+	int column_offset_u;
 
 	const long num_levels = 101;
 
 	// compressed_matrix<compressed_matrix<pair<double, int>>> arc_arcs;
 	compressed_matrix<bool> arc_arcs;
 
-	simple_matrix<discrete_label<int, 100>, cudaMemoryTypeHost> int_labels;
+	//simple_matrix<discrete_label<int, 100>, cudaMemoryTypeHost> int_labels;
+	simple_matrix<discrete_label<int, 100>> int_labels;
 
 	boost_graph graph;
 	vector<char*> tex_column_names;
@@ -184,6 +186,10 @@ public:
 
 	inline int indexSumV() const {
 		return column_offset_sum_v;
+	}
+
+	inline int indexU(long i) const {
+		return column_offset_u + i;
 	}
 
 	template<typename T>

@@ -13,8 +13,8 @@ NSIGHT_CUDA_DEBUGGER=1</LocalDebuggerEnvironment>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LocalDebuggerCommand>c:\python27\python.exe</LocalDebuggerCommand>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
-    <LocalDebuggerCommandArguments>instance.py -i 19\050_100.json.gz --solve</LocalDebuggerCommandArguments>
-    <LocalDebuggerWorkingDirectory>$(SolutionDir)python</LocalDebuggerWorkingDirectory>
+    <LocalDebuggerCommandArguments>optimal_approach.py TU_C50\instance.split4.customer</LocalDebuggerCommandArguments>
+    <LocalDebuggerWorkingDirectory>$(SolutionDir)Python</LocalDebuggerWorkingDirectory>
     <LocalDebuggerEnvironment>SCHEDULING_CPP_PATH=$(OutDir)
 NSIGHT_CUDA_DEBUGGER=1</LocalDebuggerEnvironment>
     <LocalDebuggerDebuggerType>Auto</LocalDebuggerDebuggerType>

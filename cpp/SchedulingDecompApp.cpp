@@ -24,7 +24,6 @@
 #define NOMINMAX
 #include "windows.h"
 
-
 using std::set;
 using std::pair;
 using std::list;
@@ -43,13 +42,13 @@ index(index)
 {
 }
 
-arc_property::arc_property(int index, double fuel_s_t, double fuel_t, double cost_s_t, const set<int>& drop_customers) :
-index(index), refuelpoint(-1), fuel_s_r(0.0), fuel_r(0.0), fuel_r_t(fuel_s_t), fuel_t(fuel_t), cost_s_r_t(cost_s_t), drop_customers(drop_customers.begin(), drop_customers.end())
+arc_property::arc_property(int index, double fuel_s_t, double fuel_t, double cost_s_t, const set<int>& drop_routes) :
+index(index), refuelpoint(-1), fuel_s_r(0.0), fuel_r(0.0), fuel_r_t(fuel_s_t), fuel_t(fuel_t), cost_s_r_t(cost_s_t), drop_routes(drop_routes.begin(), drop_routes.end())
 {
 }
 
-arc_property::arc_property(int index, int refuelpoint, double fuel_s_r, double fuel_r, double fuel_r_t, double fuel_t, double cost_s_r_t, const set<int>& drop_customers) :
-index(index), refuelpoint(refuelpoint), fuel_s_r(fuel_s_r), fuel_r(fuel_r), fuel_r_t(fuel_r_t), fuel_t(fuel_t), cost_s_r_t(cost_s_r_t), drop_customers(drop_customers.begin(), drop_customers.end())
+arc_property::arc_property(int index, int refuelpoint, double fuel_s_r, double fuel_r, double fuel_r_t, double fuel_t, double cost_s_r_t, const set<int>& drop_routes) :
+index(index), refuelpoint(refuelpoint), fuel_s_r(fuel_s_r), fuel_r(fuel_r), fuel_r_t(fuel_r_t), fuel_t(fuel_t), cost_s_r_t(cost_s_r_t), drop_routes(drop_routes.begin(), drop_routes.end())
 {
 }
 
@@ -66,6 +65,7 @@ DecompApp(utilParam), inst(inst), pInitialSolution(pInitialSolution), dropUnused
 
 	py_string basename(inst.getAttr("_basename"));
 	char* filename(asprintf("%s.progress.txt", (const char*)basename));
+	printf("Logfile: %s\n", filename);
 	logfile.open(filename, std::fstream::out);
 	delete[] filename;
 	logfile << "time node iteration cols globlb globub lp status newcols mostnegrc nonzero nonint" << std::endl;
@@ -93,7 +93,7 @@ void SchedulingDecompApp::precompute() {
 	int numel = 0;
 	for (int t = 0; t < num_vertices; t++)
 		for (int s = 0; s < num_vertices; s++)
-			if ((inst.vertex_customer(s) != inst.vertex_customer(t)) && (inst.vertex_finishtime(s) + inst.arc_time(s, t) <= inst.vertex_starttime(t)))
+			if (inst.feasible_edge(s, t))
 				numel++;
 
 	arc_arcs.resize(num_vertices, num_vertices, numel);
@@ -101,27 +101,23 @@ void SchedulingDecompApp::precompute() {
 	for (int t = 0; t < num_vertices; t++) {
 		arc_arcs.appendRow();
 		for (int s = 0; s < num_vertices; s++)
-			if ((inst.vertex_customer(s) != inst.vertex_customer(t)) && (inst.vertex_finishtime(s) + inst.arc_time(s, t) <= inst.vertex_starttime(t)))
+			if (inst.feasible_edge(s, t))
 				arc_arcs.appendElement(s) = true;
 	}
 
 	for (int t = 0; t < num_vertices + 2; t++)
 		boost::add_vertex(vertex_property(t), graph);
 
-	vector<set<int>> preceeding_customers(num_vertices);
-	vector<set<int>> succeeding_customers(num_vertices);
+	vector<set<int>> preceeding_routes(num_vertices);
+	vector<set<int>> succeeding_routes(num_vertices);
 
 	for (int t = inst.num_vehicles; t < num_vertices; t++) {
-		//if (inst.customer_type(inst.vertex_customer(t)) >= Instance::intermittent_alternatives) {
-			preceeding_customers[t].insert(inst.vertex_customer(t));
-			succeeding_customers[t].insert(inst.vertex_customer(t));
-		//}
+		preceeding_routes[t].insert(inst.vertex_route(t));
+		succeeding_routes[t].insert(inst.vertex_route(t));
 		for (int s = inst.num_vehicles; s < num_vertices; s++)
-			if ((inst.vertex_customer(s) != inst.vertex_customer(t)) && (inst.vertex_finishtime(s) + inst.arc_time(s, t) <= inst.vertex_starttime(t))) {
-				//if (inst.customer_type(inst.vertex_customer(s)) >= Instance::intermittent_alternatives)
-					preceeding_customers[t].insert(inst.vertex_customer(s));
-				//if (inst.customer_type(inst.vertex_customer(t)) >= Instance::intermittent_alternatives)
-					succeeding_customers[s].insert(inst.vertex_customer(t));
+			if (inst.feasible_edge(s, t)) {
+				preceeding_routes[t].insert(inst.vertex_route(s));
+				succeeding_routes[s].insert(inst.vertex_route(t));
 			}
 	}
 
@@ -131,21 +127,21 @@ void SchedulingDecompApp::precompute() {
 
 		const double fuel_t = inst.vertex_fuel(t);
 
-		set<int> active_customers;
-		std::set_intersection(preceeding_customers[t].begin(), preceeding_customers[t].end(), succeeding_customers[t].begin(), succeeding_customers[t].end(), std::inserter(active_customers, active_customers.begin()));
+		set<int> active_routes;
+		std::set_intersection(preceeding_routes[t].begin(), preceeding_routes[t].end(), succeeding_routes[t].begin(), succeeding_routes[t].end(), std::inserter(active_routes, active_routes.begin()));
 
 		for (int s = 0; s < num_vertices; s++) {
-			if ((inst.vertex_customer(s) != inst.vertex_customer(t)) && (inst.vertex_finishtime(s) + inst.arc_time(s, t) <= inst.vertex_starttime(t))) {
+			if (inst.feasible_edge(s, t)) {
 
-				set<int> drop_customers;
+				set<int> drop_routes;
 				if (dropUnusedResources)
-					std::set_difference(active_customers.begin(), active_customers.end(), preceeding_customers[s].begin(), preceeding_customers[s].end(), std::inserter(drop_customers, drop_customers.begin()));
+					std::set_difference(active_routes.begin(), active_routes.end(), preceeding_routes[s].begin(), preceeding_routes[s].end(), std::inserter(drop_routes, drop_routes.begin()));
 				
 				const double dist_s_t = inst.arc_dist(s, t);
 				const double fuel_s_t = inst.fuel_per_meter * dist_s_t;
 				const double cost_s_t = inst.cost_per_meter * dist_s_t + (s < inst.num_vehicles ? inst.cost_per_car : 0.0) + inst.vertex_cost(t);
 
-				boost::add_edge(t, s, arc_property(index++, fuel_s_t, fuel_t, cost_s_t, drop_customers), graph);
+				boost::add_edge(t, s, arc_property(index++, fuel_s_t, fuel_t, cost_s_t, drop_routes), graph);
 
 				for (int r : inst.arc_refuelpoints(t, s)) {
 
@@ -157,16 +153,16 @@ void SchedulingDecompApp::precompute() {
 					const double fuel_r = std::min(inst.refuel_per_second * time_r, 1.0);
 					const double cost_s_r_t = inst.cost_per_meter * (dist_s_r + dist_r_t) + (s < inst.num_vehicles ? inst.cost_per_car : 0.0) + inst.vertex_cost(t);
 
-					boost::add_edge(t, s, arc_property(index++, r, fuel_s_r, fuel_r, fuel_r_t, fuel_t, cost_s_r_t, drop_customers), graph);
+					boost::add_edge(t, s, arc_property(index++, r, fuel_s_r, fuel_r, fuel_r_t, fuel_t, cost_s_r_t, drop_routes), graph);
 				}
 			}
 		}
 
-		boost::add_edge(num_vertices, t, arc_property(index++, 0.0, 0.0, 0.0, set<int>()), graph);
+		boost::add_edge(num_vertices, t, arc_property(index++, 0.0, 0.0, 0.0, set<int>()), graph); // de
 	}
 
 	for (int t = 0; t < inst.num_vehicles; t++)
-		boost::add_edge(t, num_vertices + 1, arc_property(index++, 0.0, 0.0, 0.0, set<int>()), graph);
+		boost::add_edge(t, num_vertices + 1, arc_property(index++, 0.0, 0.0, 0.0, set<int>()), graph); // ds
 
 	std::cout << "<< precompute()" << std::endl;
 }
@@ -236,6 +232,15 @@ void SchedulingDecompApp::createModels()
 	modelCore->masterOnlyCols.push_back(numCols);
 	modelCore->integerVars.push_back(numCols++);
 
+	column_offset_u = numCols;
+	for (int m = 0; m < inst.num_routes; m++) {
+		tex_column_names.push_back(asprintf("\\u_{%d}", m));
+		modelCore->colNames.push_back(asprintf("u_%03d", m));
+		modelCore->colLB.push_back(0.0);
+		modelCore->colUB.push_back(1.0);
+		modelCore->integerVars.push_back(numCols++);
+	}
+
 	//
 
 	double* objective = new double[numCols];
@@ -247,7 +252,8 @@ void SchedulingDecompApp::createModels()
 
 	//
 
-	int size = (inst.num_vehicles * inst.num_trips)/* + inst.num_vehicles * (inst.num_trips + 1)*/ + (inst.num_vehicles + 1) * inst.num_trips + (inst.num_vehicles + 1);
+	//int size = (inst.num_vehicles * inst.num_trips)/* + inst.num_vehicles * (inst.num_trips + 1)*/ + (inst.num_vehicles + 1) * inst.num_trips + (inst.num_vehicles + 1) + inst.num_trips;
+	int size = inst.num_routes + (inst.num_vehicles + 1) * inst.num_trips + (inst.num_vehicles + 1) + (inst.num_vehicles + 1) * inst.num_trips;
 	int* rowInds = new int[size];
 	int* colInds = new int[size];
 	double* values = new double[size];
@@ -259,45 +265,26 @@ void SchedulingDecompApp::createModels()
 	//
 
 	for (int i = 0; i < inst.num_customers; i++) {
-		modelCore->rowNames.push_back(asprintf("cover_%03d", i));
+		modelCore->rowNames.push_back(asprintf("customer_%03d", i));
 		modelCore->rowLB.push_back(1.0);
 		modelCore->rowUB.push_back(findExactCover ? 1.0 : m_infinity);
 	}
 
-	for (int i = 0; i < inst.num_vehicles; i++) {
+	/*for (int i = 0; i < inst.num_vehicles; i++) {
 		for (int j = 0; j < inst.num_trips; j++) {
 			rowInds[el] = numRows + inst.vertex_customer(inst.num_vehicles + j);
 			colInds[el] = indexY(i, j);
 			el++;
 		}
+	}*/
+
+	for (int i = 0; i < inst.num_routes; i++) {
+		rowInds[el] = numRows + inst.route_customer(i);
+		colInds[el] = indexU(i);
+		el++;
 	}
 
 	numRows += inst.num_customers;
-
-	// 
-
-	//for (int i = 0; i < inst.num_vehicles; i++) {
-
-	//	modelCore->rowNames.push_back(asprintf("r_%03d", i));
-	//	modelCore->rowLB.push_back(0.0);
-	//	modelCore->rowUB.push_back(0.0);
-
-	//	for (int j = 0; j < inst.num_trips; j++) {
-	//		rowInds[el] = numRows;
-	//		colInds[el] = indexY(i, j);
-	//		values[el] = 1.0;
-	//		el++;
-	//	}
-
-	//	rowInds[el] = numRows;
-	//	colInds[el] = indexR(i);
-	//	values[el] = -1.0;
-	//	el++;
-
-	//	numRows++;
-	//}
-
-	//
 
 	for (int j = 0; j < inst.num_trips; j++) {
 
@@ -339,6 +326,29 @@ void SchedulingDecompApp::createModels()
 
 	numRows++;
 
+	for (int j = 0; j < inst.num_trips; j++) {
+		modelCore->rowNames.push_back(asprintf("route_%04d", j));
+		modelCore->rowLB.push_back(0.0);
+		modelCore->rowUB.push_back(0.0);
+	}
+
+	for (int i = 0; i < inst.num_vehicles; i++) {
+		for (int j = 0; j < inst.num_trips; j++) {
+			rowInds[el] = numRows + j;
+			colInds[el] = indexY(i, j);
+			el++;
+		}
+	}
+
+	for (int j = 0; j < inst.num_trips; j++) {
+		rowInds[el] = numRows + j;
+		colInds[el] = indexU(inst.vertex_route(j) - inst.num_customers);
+		values[el] = -1.0;
+		el++;
+	}
+
+	numRows += inst.num_trips;
+
 	//
 
 	assert(el == size);
@@ -346,14 +356,6 @@ void SchedulingDecompApp::createModels()
 
 	modelCore->M = new CoinPackedMatrix(false, rowInds, colInds, values, size);
 	modelCore->M->setDimensions(numRows, numCols);
-
-	//for (int i = 0; i < numRows; i++) {
-	//	for (int j = 0; j < numCols; j++) {
-	//		modelCore->M->printMatrixElement(i, j);
-	//		printf(" ");
-	//	}
-	//	printf("#\n");
-	//}
 
 	setModelCore(modelCore, "CORE");
 
@@ -394,8 +396,11 @@ void SchedulingDecompApp::createModels()
 
 int SchedulingDecompApp::generateInitVars(DecompVarList& initVars)
 {
+	printf(">> generateInitVars()\n");
 	py_dict<py_shared_ptr, py_int> pIndex = inst.getAttr("_index");
 	py_dict<py_shared_ptr, py_list<>> pDuties = pInitialSolution.getAttr("duties");
+
+	printf("Number of Duties: %d\n", pDuties.size());
 
 	for (auto pair : pDuties) {
 
@@ -409,9 +414,11 @@ int SchedulingDecompApp::generateInitVars(DecompVarList& initVars)
 		values.reserve(n + 3);
 
 		for (auto item : pair.second) {
-			py_shared_ptr pTrip(PyTuple_GetItem(item.second.get(), 0), py_borrowed_ref);
-			indices.push_back(indexY(v, (long) pIndex[pTrip] - inst.num_vehicles));
-			values.push_back(1.0);
+			py_shared_ptr pTrip(item.second.get(), py_borrowed_ref);
+			if ((long)pIndex[pTrip] < inst.num_trips + inst.num_vehicles) {
+				indices.push_back(indexY(v, (long)pIndex[pTrip] - inst.num_vehicles));
+				values.push_back(1.0);
+			}
 		}
 
 		const double fCost = PyFloat_AsDouble(pInitialSolution.callMethod("evaluate", "O", pair.first.get()));
@@ -429,6 +436,8 @@ int SchedulingDecompApp::generateInitVars(DecompVarList& initVars)
 		var->setBlockId(v);
 		initVars.push_back(var);
 	}
+
+	printf("<< generateInitVars()\n");
 
 	return pDuties.size();
 }
