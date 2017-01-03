@@ -50,17 +50,11 @@ DLLEXPORT PyObject* Solve(PyObject* self, PyObject* args)
 		pInstance.analyse();
 
 		SchedulingDecompApp sip(utilParam, pInstance, pInitialSolution);
-		printf("sip\n");
-		printf(utilParam.GetSetting("branchOnNumberOfVehicles", false, "CUSTOM")? "[X] Vehicles, " : "[ ] Vehicles, ");
-		printf(utilParam.GetSetting("branchOnLengthOfDuties", false, "CUSTOM")? "[X] Length, " : "[ ] Length, ");
-		printf(utilParam.GetSetting("branchOnAlternativeTrips", false, "CUSTOM")? "[X] Trips\n" : "[ ] Trips\n");
 		SchedulingAlgoPC* algo = new SchedulingAlgoPC(&sip, utilParam);
-		printf("algo\n");
 		AlpsDecompModel alpsModel(utilParam, algo);
-		printf("alpsModel");
 		alpsModel.AlpsPar()->setEntry(AlpsParams::deleteDeadNode, false);
 		alpsModel.solve();
-		printf("alpsModel solved");
+		printf("alpsModel solved\n");
 
 		int status = alpsModel.getSolStatus();
 		PyObject* pStatus;
@@ -73,7 +67,7 @@ DLLEXPORT PyObject* Solve(PyObject* self, PyObject* args)
 		LpStatusUndefined   “Undefined”   -3
 		*/
 
-		printf("Status: %s", status);
+		printf("Status: %s\n", status);
 
 		switch (status) {
 		case AlpsExitStatusOptimal:

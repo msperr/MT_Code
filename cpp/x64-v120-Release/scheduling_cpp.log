@@ -1,15 +1,15 @@
-﻿Der Buildvorgang wurde am 03.01.2017 09:04:48 gestartet.
+﻿Der Buildvorgang wurde am 03.01.2017 18:15:08 gestartet.
      1>Projekt "C:\Users\Martin\workspace\Master_Thesis\code\cpp\scheduling_cpp.vcxproj" auf Knoten "2", Build Ziel(e).
      1>ClCompile:
          C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\bin\x86_amd64\CL.exe /c /I"..\..\lib\Dip-0.92.2\CoinUtils\src" /I"..\..\lib\\Dip-0.92.2\Cgl\src" /I"..\..\lib\\Dip-0.92.2\Cgl\src\CglClique" /I"..\..\lib\\Dip-0.92.2\Cgl\src\CglFlowCover" /I"..\..\lib\\Dip-0.92.2\Cgl\src\CglGomory" /I"..\..\lib\\Dip-0.92.2\Cgl\src\CglKnapsackCover" /I"..\..\lib\\Dip-0.92.2\Cgl\src\CglMixedIntegerRounding" /I"..\..\lib\\Dip-0.92.2\Cgl\src\CglMixedIntegerRounding2" /I"..\..\lib\\Dip-0.92.2\Cgl\src\CglOddHole" /I"..\..\lib\\Dip-0.92.2\Cgl\src\CglPreProcess" /I"..\..\lib\\Dip-0.92.2\Cgl\src\CglProbing" /I"..\..\lib\Dip-0.92.2\Cgl\src\CglTwomir" /I"..\..\lib\\Dip-0.92.2\Clp\src" /I"..\..\lib\\Dip-0.92.2\Cbc\src" /I"..\..\lib\\Dip-0.92.2\Osi\src\Osi" /I"..\..\lib\\Dip-0.92.2\Clp\src\OsiClp" /I"..\..\lib\\Dip-0.92.2\Cbc\src\OsiCbc" /I"..\..\lib\\Dip-0.92.2\Alps\src" /I"..\..\lib\Dip-0.92.2\Dip\src" /I..\OGDF\include /IC:\Python27\include /I"C:\Python27\Lib\site-packages\numpy\core\include" /I"C:\ProgramData\NVIDIA Corporation\CUDA Samples\v7.0\common\inc" /I..\..\lib\boost_1_60_0 /I"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v7.0\include" /Zi /nologo /W3 /WX- /sdl /MP /O2 /Ob2 /Oi /Ot /GL /D _WINDLL /D _MBCS /Gm- /EHsc /MD /GS /Gy /fp:precise /Zc:wchar_t /Zc:forScope /openmp /Fo"x64-v120-Release\\" /Fd"x64-v120-Release\vc120.pdb" /Gd /TP /errorReport:prompt SchedulingDecompApp.cpp
          SchedulingDecompApp.cpp
      1>c:\python27\lib\site-packages\numpy\core\include\numpy\npy_1_7_deprecated_api.h(12): warning Msg: Using deprecated NumPy API, disable it by #defining NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
-     1>SchedulingDecompApp.cpp(560): warning C4267: 'Initialisierung': Konvertierung von 'size_t' nach 'const int', Datenverlust möglich
-     1>SchedulingDecompApp.cpp(654): warning C4267: 'Initialisierung': Konvertierung von 'size_t' nach 'const int', Datenverlust möglich
+     1>SchedulingDecompApp.cpp(572): warning C4267: 'Initialisierung': Konvertierung von 'size_t' nach 'const int', Datenverlust möglich
+     1>SchedulingDecompApp.cpp(669): warning C4267: 'Initialisierung': Konvertierung von 'size_t' nach 'const int', Datenverlust möglich
      1>c:\users\martin\workspace\master_thesis\code\cpp\label.h(220): warning C4267: '+=': Konvertierung von 'size_t' nach 'int', Datenverlust möglich
                  c:\users\martin\workspace\master_thesis\code\cpp\label.h(217): Bei der Kompilierung der  Klassen-template der const int label_container_pareto<discrete_label<int,100,void>>::size(void)-Memberfunktion
-                 c:\users\martin\workspace\master_thesis\code\cpp\SchedulingDecompAppSolveRelaxed.h(158): Siehe Verweis auf die Instanziierung der gerade kompilierten Funktions-template "const int label_container_pareto<discrete_label<int,100,void>>::size(void)".
-                 SchedulingDecompApp.cpp(568): Siehe Verweis auf die Instanziierung der gerade kompilierten Klassen-template "label_container_pareto<discrete_label<int,100,void>>".
+                 c:\users\martin\workspace\master_thesis\code\cpp\SchedulingDecompAppSolveRelaxed.h(160): Siehe Verweis auf die Instanziierung der gerade kompilierten Funktions-template "const int label_container_pareto<discrete_label<int,100,void>>::size(void)".
+                 SchedulingDecompApp.cpp(582): Siehe Verweis auf die Instanziierung der gerade kompilierten Klassen-template "label_container_pareto<discrete_label<int,100,void>>".
      1>C:\Users\Martin\workspace\Master_Thesis\lib\boost_1_60_0\boost/graph/r_c_shortest_paths.hpp(222): warning C4267: 'Argument': Konvertierung von 'size_t' nach 'const unsigned long', Datenverlust möglich
                  C:\Users\Martin\workspace\Master_Thesis\lib\boost_1_60_0\boost/graph/r_c_shortest_paths.hpp(562): Siehe Verweis auf die Instanziierung der gerade kompilierten Funktions-template "void boost::detail::r_c_shortest_paths_dispatch<Graph,VertexIndexMap,EdgeIndexMap,spprc_resource_container<T,void>,const Resource_Extension_Function,const Dominance_Function,Label_Allocator,Visitor>(const Graph &,const VertexIndexMap &,const EdgeIndexMap &,unsigned __int64,unsigned __int64,std::vector<std::vector<boost::detail::edge_desc_impl<boost::directed_tag,unsigned __int64>,std::allocator<_Ty>>,std::allocator<std::vector<_Ty,std::allocator<_Ty>>>> &,std::vector<spprc_resource_container<T,void>,std::allocator<spprc_resource_container<T,void>>> &,bool,const Resource_Container &,Resource_Extension_Function &,Dominance_Function &,Label_Allocator,Visitor)".
                  with
@@ -25,7 +25,7 @@
          ,            _Ty=boost::detail::edge_desc_impl<boost::directed_tag,unsigned __int64>
          ,            Resource_Container=spprc_resource_container<fuel_level_type,void>
                  ]
-                 c:\users\martin\workspace\master_thesis\code\cpp\SchedulingDecompAppSolveRelaxedBoost.h(253): Siehe Verweis auf die Instanziierung der gerade kompilierten Funktions-template "void boost::r_c_shortest_paths<boost_graph,boost::vec_adj_list_vertex_property_map<Graph,Graph *,int,int &,Tag>,boost::adj_list_edge_property_map<boost::directed_tag,int,int &,unsigned __int64,Property,int>,spprc_resource_container<T,void>,spprc_ref<exact,double>,spprc_dominance<T>,std::allocator<_Ty>,spprc_visitor<T>>(const Graph &,const VertexIndexMap &,const EdgeIndexMap &,unsigned __int64,unsigned __int64,std::vector<std::vector<boost::detail::edge_desc_impl<boost::directed_tag,unsigned __int64>,std::allocator<boost::detail::edge_desc_impl<boost::directed_tag,unsigned __int64>>>,std::allocator<std::vector<boost::detail::edge_desc_impl<boost::directed_tag,unsigned __int64>,std::allocator<boost::detail::edge_desc_impl<boost::directed_tag,unsigned __int64>>>>> &,std::vector<spprc_resource_container<T,void>,std::allocator<spprc_resource_container<T,void>>> &,const Resource_Container &,const Resource_Extension_Function &,const Dominance_Function &,Label_Allocator,Visitor)".
+                 c:\users\martin\workspace\master_thesis\code\cpp\SchedulingDecompAppSolveRelaxedBoost.h(263): Siehe Verweis auf die Instanziierung der gerade kompilierten Funktions-template "void boost::r_c_shortest_paths<boost_graph,boost::vec_adj_list_vertex_property_map<Graph,Graph *,int,int &,Tag>,boost::adj_list_edge_property_map<boost::directed_tag,int,int &,unsigned __int64,Property,int>,spprc_resource_container<T,void>,spprc_ref<exact,double>,spprc_dominance<T>,std::allocator<_Ty>,spprc_visitor<T>>(const Graph &,const VertexIndexMap &,const EdgeIndexMap &,unsigned __int64,unsigned __int64,std::vector<std::vector<boost::detail::edge_desc_impl<boost::directed_tag,unsigned __int64>,std::allocator<boost::detail::edge_desc_impl<boost::directed_tag,unsigned __int64>>>,std::allocator<std::vector<boost::detail::edge_desc_impl<boost::directed_tag,unsigned __int64>,std::allocator<boost::detail::edge_desc_impl<boost::directed_tag,unsigned __int64>>>>> &,std::vector<spprc_resource_container<T,void>,std::allocator<spprc_resource_container<T,void>>> &,const Resource_Container &,const Resource_Extension_Function &,const Dominance_Function &,Label_Allocator,Visitor)".
                  with
                  [
                      Graph=boost::adjacency_list<boost::vecS,boost::vecS,boost::directedS,vertex_property,arc_property,graph_property,boost::listS>
@@ -41,14 +41,14 @@
          ,            Label_Allocator=std::allocator<int>
          ,            Visitor=spprc_visitor<fuel_level_type>
                  ]
-                 SchedulingDecompApp.cpp(576): Siehe Verweis auf die Instanziierung der gerade kompilierten Funktions-template "void SchedulingDecompApp::solveRelaxedBoost<exact>(const double,const double *,const double *,const double *,const bool *,const bool *,const int *,const int *,DecompVarList &,std::vector<DecompSolverStatus,std::allocator<_Ty>> &)".
+                 SchedulingDecompApp.cpp(591): Siehe Verweis auf die Instanziierung der gerade kompilierten Funktions-template "void SchedulingDecompApp::solveRelaxedBoost<exact>(const double,const double *,const double *,const double *,const bool *,const bool *,const int *,const int *,DecompVarList &,std::vector<DecompSolverStatus,std::allocator<_Ty>> &)".
                  with
                  [
                      _Ty=DecompSolverStatus
                  ]
      1>C:\Users\Martin\workspace\Master_Thesis\lib\boost_1_60_0\boost/graph/r_c_shortest_paths.hpp(418): warning C4267: 'Argument': Konvertierung von 'size_t' nach 'const unsigned long', Datenverlust möglich
-     1>c:\users\martin\workspace\master_thesis\code\cpp\SchedulingDecompAppSolveRelaxedBoost.h(87): warning C4267: 'Initialisierung': Konvertierung von 'size_t' nach 'const int', Datenverlust möglich
-                 c:\users\martin\workspace\master_thesis\code\cpp\SchedulingDecompAppSolveRelaxedBoost.h(83): Bei der Kompilierung der  Klassen-template der bool spprc_ref<exact,double>::operator ()(const boost_graph &,spprc_resource_container<T,void> &,const spprc_resource_container<T,void> &,boost::detail::edge_desc_impl<boost::directed_tag,unsigned __int64>) const-Memberfunktion
+     1>c:\users\martin\workspace\master_thesis\code\cpp\SchedulingDecompAppSolveRelaxedBoost.h(94): warning C4267: 'Initialisierung': Konvertierung von 'size_t' nach 'const int', Datenverlust möglich
+                 c:\users\martin\workspace\master_thesis\code\cpp\SchedulingDecompAppSolveRelaxedBoost.h(90): Bei der Kompilierung der  Klassen-template der bool spprc_ref<exact,double>::operator ()(const boost_graph &,spprc_resource_container<T,void> &,const spprc_resource_container<T,void> &,boost::detail::edge_desc_impl<boost::directed_tag,unsigned __int64>) const-Memberfunktion
                  with
                  [
                      T=fuel_level_type
@@ -58,10 +58,10 @@
                  [
                      T=fuel_level_type
                  ]
-                 c:\users\martin\workspace\master_thesis\code\cpp\SchedulingDecompAppSolveRelaxedBoost.h(249): Siehe Verweis auf die Instanziierung der gerade kompilierten Klassen-template "spprc_ref<exact,double>".
-     1>c:\users\martin\workspace\master_thesis\code\cpp\SchedulingDecompAppSolveRelaxedBoost.h(88): warning C4267: 'Initialisierung': Konvertierung von 'size_t' nach 'const int', Datenverlust möglich
-     1>c:\users\martin\workspace\master_thesis\code\cpp\SchedulingDecompAppSolveRelaxedBoost.h(187): warning C4267: 'Initialisierung': Konvertierung von 'size_t' nach 'const int', Datenverlust möglich
-                 c:\users\martin\workspace\master_thesis\code\cpp\SchedulingDecompAppSolveRelaxedBoost.h(183): Bei der Kompilierung der  Klassen-template der void spprc_visitor<fuel_level_type>::on_label_not_dominated(const boost::r_c_shortest_paths_label<boost_graph,spprc_resource_container<T,void>> &,const boost_graph &)-Memberfunktion
+                 c:\users\martin\workspace\master_thesis\code\cpp\SchedulingDecompAppSolveRelaxedBoost.h(259): Siehe Verweis auf die Instanziierung der gerade kompilierten Klassen-template "spprc_ref<exact,double>".
+     1>c:\users\martin\workspace\master_thesis\code\cpp\SchedulingDecompAppSolveRelaxedBoost.h(95): warning C4267: 'Initialisierung': Konvertierung von 'size_t' nach 'const int', Datenverlust möglich
+     1>c:\users\martin\workspace\master_thesis\code\cpp\SchedulingDecompAppSolveRelaxedBoost.h(193): warning C4267: 'Initialisierung': Konvertierung von 'size_t' nach 'const int', Datenverlust möglich
+                 c:\users\martin\workspace\master_thesis\code\cpp\SchedulingDecompAppSolveRelaxedBoost.h(189): Bei der Kompilierung der  Klassen-template der void spprc_visitor<fuel_level_type>::on_label_not_dominated(const boost::r_c_shortest_paths_label<boost_graph,spprc_resource_container<T,void>> &,const boost_graph &)-Memberfunktion
                  with
                  [
                      T=fuel_level_type
@@ -71,8 +71,8 @@
                  [
                      T=fuel_level_type
                  ]
-                 c:\users\martin\workspace\master_thesis\code\cpp\SchedulingDecompAppSolveRelaxedBoost.h(252): Siehe Verweis auf die Instanziierung der gerade kompilierten Klassen-template "spprc_visitor<fuel_level_type>".
-     1>c:\users\martin\workspace\master_thesis\code\cpp\SchedulingDecompAppSolveRelaxedBoost.h(206): warning C4267: 'Initialisierung': Konvertierung von 'size_t' nach 'const int', Datenverlust möglich
+                 c:\users\martin\workspace\master_thesis\code\cpp\SchedulingDecompAppSolveRelaxedBoost.h(262): Siehe Verweis auf die Instanziierung der gerade kompilierten Klassen-template "spprc_visitor<fuel_level_type>".
+     1>c:\users\martin\workspace\master_thesis\code\cpp\SchedulingDecompAppSolveRelaxedBoost.h(212): warning C4267: 'Initialisierung': Konvertierung von 'size_t' nach 'const int', Datenverlust möglich
        Link:
          C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\bin\x86_amd64\link.exe /ERRORREPORT:PROMPT /OUT:"C:\Users\Martin\workspace\Master_Thesis\code\x64-v120-Release\scheduling_cpp.pyd" /NOLOGO /LIBPATH:C:\Python27\libs /LIBPATH:"C:\Users\Martin\workspace\Master_Thesis\code\x64-v120-Release\\" /LIBPATH:"C:\Users\Martin\workspace\Master_Thesis\code\x64-v120-Release\\" /LIBPATH:"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v7.0\lib\x64" libCoinUtils.lib libCgl.lib libClp.lib libCbc.lib libCbcSolver.lib libOsi.lib libOsiClp.lib libOsiCbc.lib libAlps.lib libDecomp.lib cudart.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"C:\Users\Martin\workspace\Master_Thesis\code\x64-v120-Release\scheduling_cpp.pdb" /OPT:REF /OPT:ICF /LTCG /TLBID:1 /DYNAMICBASE /NXCOMPAT /IMPLIB:"C:\Users\Martin\workspace\Master_Thesis\code\x64-v120-Release\scheduling_cpp.lib" /MACHINE:X64 /DLL "x64-v120-Release\InstanceBuild.cu.obj"
          "x64-v120-Release\SchedulingDecompAppExportSolution.obj"
@@ -94,4 +94,4 @@
 
 Build erfolgreich.
 
-Verstrichene Zeit 00:00:27.70
+Verstrichene Zeit 00:00:23.12

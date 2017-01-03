@@ -179,9 +179,6 @@ if __name__ == '__main__':
         }
     }
     
-    for vehicle in solution.duties.iterkeys():
-        print vehicle, "(%d): " % instance._index[vehicle] + ", ".join(["%s (%d)" % (trip, instance._index[trip]) for trip in solution.duties.get(vehicle)])
-    
     printer.write('Computing optimal solution ...')
     
     status, message, sol = scheduling_cpp.Solve(parameters, instance, solution)

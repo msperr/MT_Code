@@ -15,6 +15,8 @@ using std::set;
 template<class label_type, class label_container_type, bool check_fuel, bool check_length, bool check_alternatives, typename>
 void SchedulingDecompApp::solveRelaxedLabeling(label_container_type& container, const double redCostF, const double* redCostY, const double* redCostV, const double* convexDuals, const bool* include, const bool* exclude, const int* mincustomers, const int* maxcustomers, DecompVarList& varList, vector<DecompSolverStatus>& states) {
 	
+	printf(">> SchedulingDecompApp::solveRelaxedLabeling()\n");
+
 	const int num_vertices = inst.num_vehicles + inst.num_trips;
 	const int numExtVertices = inst.num_vehicles + inst.num_trips + inst.num_refuelpoints;
 
@@ -45,8 +47,6 @@ void SchedulingDecompApp::solveRelaxedLabeling(label_container_type& container, 
 				continue;
 			if (label_s.fRedCost - convexDuals[s] < -m_param.RedCostEpsilon)
 				neg_rc[s].push_back(path(label_s));
-			//else if (label_s.fRedCost < INFINITY && (!min_non_neg_rc[s].get() || label_s.fRedCost < min_non_neg_rc[s]->getReducedCost()))
-			//	min_non_neg_rc[s].reset(path(label_s));
 		}
 	}
 
@@ -139,21 +139,25 @@ void SchedulingDecompApp::solveRelaxedLabeling(label_container_type& container, 
 				const label_type& label_s = container.get(s);
 				if (label_s.fRedCost - convexDuals[s] < -m_param.RedCostEpsilon)
 					neg_rc[s].push_back(path(label_s));
-				//else if (label_s.fRedCost < INFINITY && (!min_non_neg_rc[s].get() || label_s.fRedCost < min_non_neg_rc[s]->getReducedCost()))
-				//	min_non_neg_rc[s].reset(path(label_s));
 			}
 		}
 	}
 
 	for (int w : vehicles) {
 		if (neg_rc[w].empty()) {
-			//varLists[w].push_back(min_non_neg_rc[w].release());
 			states[w] = DecompSolStatNoSolution;
-		} else {
+		}
+		else {
 			varList.splice(varList.end(), neg_rc[w]);
 			states[w] = DecompSolStatFeasible;
 		}
 	}
 
+	/*for (int i = 0; i < container.size(); i++) {
+		container.get(i).print();
+	}*/
+
 	printf("labels: %d\n", container.size());
+
+	printf("<< SchedulingDecompApp::solveRelaxedLabeling()\n");
 }

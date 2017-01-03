@@ -10,11 +10,11 @@
 
 SchedulingAlgoPC::SchedulingAlgoPC(DecompApp* app, UtilParameters& utilParam) : DecompAlgoPC(app, utilParam), branchOnNumberOfVehicles(utilParam.GetSetting("branchOnNumberOfVehicles", false, "CUSTOM")), branchOnLengthOfDuties(utilParam.GetSetting("branchOnLengthOfDuties", false, "CUSTOM")), branchOnAlternativeTrips(utilParam.GetSetting("branchOnAlternativeTrips", false, "CUSTOM")) 
 {
-	printf("SchedulingAlgoPC");
 }
 
 DecompStatus SchedulingAlgoPC::processNode(const AlpsDecompTreeNode* node, const double globalLB, const double globalUB)
 {
+	printf("Algo: processNode\n");
 
 	SchedulingDecompApp* app = (SchedulingDecompApp*)getDecompApp();
 
@@ -46,6 +46,8 @@ DecompStatus SchedulingAlgoPC::processNode(const AlpsDecompTreeNode* node, const
 }
 
 void SchedulingAlgoPC::postProcessNode(const AlpsDecompTreeNode* node, DecompStatus decompStatus) {
+
+	printf("Algo: postProcessNode\n");
 
 	const char* DecompStatusStr[] = { "STATUS_FEASIBLE", "STATUS_IP_FEASIBLE", "STATUS_INFEASIBLE", "STATUS_UNKNOWN" };
 
@@ -91,6 +93,7 @@ void SchedulingAlgoPC::postProcessNode(const AlpsDecompTreeNode* node, DecompSta
 
 bool SchedulingAlgoPC::chooseBranchSet(std::vector< std::pair<int, double> >& downBranchLB, std::vector< std::pair<int, double> >& downBranchUB, std::vector< std::pair<int, double> >& upBranchLB, std::vector< std::pair<int, double> >& upBranchUB)
 {
+	printf("Algo: chooseBranchSet\n");
 
 	const SchedulingDecompApp* app = (SchedulingDecompApp*) getDecompApp();
 	const Instance& inst = app->inst;
@@ -363,7 +366,7 @@ void SchedulingAlgoPC::printBranchAndBoundTreeNode(const AlpsDecompTreeNode* nod
 
 void SchedulingAlgoPC::setMasterBounds(const double* lbs, const double* ubs)
 {
-	printf("setMasterBounds\n");
+	printf("Algo: setMasterBounds\n");
 
 	DecompConstraintSet* modelCore = m_modelCore.getModel();
 
@@ -392,6 +395,8 @@ void SchedulingAlgoPC::setMasterBounds(const double* lbs, const double* ubs)
 
 	const int  nIntVars = modelCore->getNumInts();
 	const int* integerVars = modelCore->getIntegerVars();
+
+	std::cout << "nCols: " << nCols << ", m_vars: " << m_vars.size() << ", nIntVars: " << nIntVars << std::endl;
 
 	for (int c = 0; c < nIntVars; c++) {
 		const int coreColIndex = integerVars[c];

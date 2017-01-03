@@ -400,8 +400,6 @@ int SchedulingDecompApp::generateInitVars(DecompVarList& initVars)
 	py_dict<py_shared_ptr, py_int> pIndex = inst.getAttr("_index");
 	py_dict<py_shared_ptr, py_list<>> pDuties = pInitialSolution.getAttr("duties");
 
-	printf("Number of Duties: %d\n", pDuties.size());
-
 	for (auto pair : pDuties) {
 
 		const int v = (long) pIndex[pair.first];
@@ -444,6 +442,8 @@ int SchedulingDecompApp::generateInitVars(DecompVarList& initVars)
 
 bool SchedulingDecompApp::solveRelaxedAll(const double* redCost, const double* convexDuals, DecompVarList& varList, vector<DecompSolverStatus>& states) {
 
+	printf(">> SchedulingDecompApp::solvedRelaxedAll()\n");
+
 	SchedulingAlgoPC* algo = (SchedulingAlgoPC*)getDecompAlgo();
 
 	const int num_vertices = inst.num_vehicles + inst.num_trips;
@@ -455,22 +455,34 @@ bool SchedulingDecompApp::solveRelaxedAll(const double* redCost, const double* c
 	const double* upperbounds = desc->getUpperBounds();
 
 	bool* excludes = new bool[inst.num_vehicles * num_vertices];
+	std::cout << "excludes: ";
 	for (int v = 0; v < inst.num_vehicles; v++) {
 		bool* exclude = excludes + v * num_vertices;
 		std::fill_n(exclude, inst.num_vehicles, true);
-		for (int t = 0; t < inst.num_trips; t++)
+		for (int t = 0; t < inst.num_trips; t++) {
 			exclude[inst.num_vehicles + t] = upperbounds[indexY(v, t)] < DecompEpsilon || upperbounds[indexW(t)] < DecompEpsilon;
+			if (exclude[inst.num_vehicles + t]) {
+				std::cout << "(" << v << ", " << t << ") ";
+			}
+		}
 	}
+	std::cout << std::endl;
 
+	std::cout << "includes: ";
 	bool* includes = new bool[inst.num_vehicles * num_vertices];
 	for (int v = 0; v < inst.num_vehicles; v++) {
 		bool* include = includes + v * num_vertices;
 		std::fill_n(include, inst.num_vehicles, false);
 		for (int t = 0; t < inst.num_trips; t++) {
 			include[inst.num_vehicles + t] = lowerbounds[indexY(v, t)] > 1.0 - DecompEpsilon;
+			if (include[inst.num_vehicles + t]) {
+				std::cout << "(" << v << ", " << t << ") ";
+			}
 		}
 	}
+	std::cout << std::endl;
 
+	//TODO: minlength instead of mincustomers, maxlength instead of maxcustomers
 	int* mincustomers = new int[inst.num_vehicles];
 	std::fill_n(mincustomers, inst.num_vehicles, 0);
 	for (int v = 0; v < inst.num_vehicles; v++)
@@ -558,8 +570,10 @@ bool SchedulingDecompApp::solveRelaxedAll(const double* redCost, const double* c
 	//
 
 	const int num_blocks = blocks.size();
+	printf("num_blocks: %d\n", num_blocks);
 #pragma omp parallel for schedule(dynamic) if(num_blocks > 1)
 	for (int i = 0; i < num_blocks; i++) {
+		printf("Block %d\n", i);
 
 		block& current_block = blocks[i];
 
@@ -569,8 +583,9 @@ bool SchedulingDecompApp::solveRelaxedAll(const double* redCost, const double* c
 		solveRelaxedLabeling<discrete_label<int, 100>, label_container_pareto<discrete_label<int, 100>>, true, true, true>(labels, current_block.redCostF, current_block.redCostY, current_block.redCostV, convexDuals, current_block.include, current_block.exclude, mincustomers, maxcustomers, current_block.varList, states);
 
 		bool nosolution = true;
-		for (DecompVar* var : current_block.varList)
+		for (DecompVar* var : current_block.varList) {
 			nosolution &= var->getReducedCost() >= -m_param.RedCostEpsilon;
+		}
 
 		if (nosolution) {
 			solveRelaxedBoost<exact>(current_block.redCostF, current_block.redCostY, current_block.redCostV, convexDuals, current_block.include, current_block.exclude, mincustomers, maxcustomers, current_block.varList, states);
@@ -761,6 +776,8 @@ bool SchedulingDecompApp::solveRelaxedAll(const double* redCost, const double* c
 		delete[] mincustomers;
 	if (maxcustomers)
 		delete[] maxcustomers;
+
+	printf("<< SchedulingDecompApp::solvedRelaxedAll()\n");
 
 	return true;
 }
