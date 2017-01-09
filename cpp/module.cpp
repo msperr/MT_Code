@@ -40,6 +40,9 @@ DLLEXPORT PyObject* Solve(PyObject* self, PyObject* args)
 
 	printf("Instance loaded\n");
 
+	PyObject* pStatus;
+	PyObject* pMessage = Py_None;
+
 	try {
 
 		UtilParameters utilParam;
@@ -57,8 +60,9 @@ DLLEXPORT PyObject* Solve(PyObject* self, PyObject* args)
 		printf("alpsModel solved\n");
 
 		int status = alpsModel.getSolStatus();
-		PyObject* pStatus;
-		PyObject* pMessage = Py_None;
+		std::cout << "Status: " << status << std::endl;
+		//PyObject* pStatus;
+		//PyObject* pMessage = Py_None;
 		/**
 		LpStatusOptimal     “Optimal”      1
 		LpStatusNotSolved   “Not Solved”   0
@@ -67,7 +71,7 @@ DLLEXPORT PyObject* Solve(PyObject* self, PyObject* args)
 		LpStatusUndefined   “Undefined”   -3
 		*/
 
-		printf("Status: %s\n", status);
+		std::cout << "Status: " << status << std::endl;
 
 		switch (status) {
 		case AlpsExitStatusOptimal:
@@ -90,6 +94,7 @@ DLLEXPORT PyObject* Solve(PyObject* self, PyObject* args)
 			break;
 
 		case AlpsExitStatusInfeasible:
+			std::cout << "AlpsExitStatusInfeasible" << std::endl;
 			pStatus = PyInt_FromLong(-1);
 			break;
 

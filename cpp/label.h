@@ -24,10 +24,13 @@ struct label_base {
 	int refuelpoint = -1;
 	int length = 0;
 
-	set<int> customers;
+	//set<int> customers;
+	//vector<int> routes;
+	int* routes;
 
 	label_base(int vertex, T fuel, double fRedCost, double fCost, int refuelpoint, const label_base<T>* successor, int length) :
-		vertex(vertex), fuel(fuel), fRedCost(fRedCost), fCost(fCost), refuelpoint(refuelpoint), successor(successor), length(length) {}
+		vertex(vertex), fuel(fuel), fRedCost(fRedCost), fCost(fCost), refuelpoint(refuelpoint), successor(successor), length(length) {
+	}
 
 	bool operator<(const label_base<T>& rhs) const {
 		return fuel < rhs.fuel || (fuel == rhs.fuel && fRedCost < rhs.fRedCost);
@@ -145,7 +148,8 @@ public:
 	void reset(int s, const label_type& label) {
 		for (int e = 0; e < labels.cols; e++) {
 			labels(s, e) = label_type(s, (double)e / (labels.cols - 1), label.fRedCost, label.fCost, label.refuelpoint, lable.successor, label.length);
-			labels(s, e).customers = label.customers;
+			//labels(s, e).customers = label.customers;
+			label(s, e).routes = label.routes;
 		}
 	}
 

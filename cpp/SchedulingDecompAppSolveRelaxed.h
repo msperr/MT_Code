@@ -17,6 +17,8 @@ void SchedulingDecompApp::solveRelaxedLabeling(label_container_type& container, 
 	
 	printf(">> SchedulingDecompApp::solveRelaxedLabeling()\n");
 
+	std::cout << "container.size(): " << container.size() << std::endl;
+
 	const int num_vertices = inst.num_vehicles + inst.num_trips;
 	const int numExtVertices = inst.num_vehicles + inst.num_trips + inst.num_refuelpoints;
 
@@ -32,8 +34,17 @@ void SchedulingDecompApp::solveRelaxedLabeling(label_container_type& container, 
 
 	for (int t = includeindex.size() ? includeindex.back() : 0; t < num_vertices; t++) {
 		label_type label_t(t, 0.0, 0.0, 0.0, -1, nullptr, 0);
-		if (forbidAlternatives && check_alternatives && t >= inst.num_vehicles && inst.customer_type(inst.vertex_customer(t)) >= Instance::intermittent_alternatives)
-			label_t.customers.insert(inst.vertex_customer(t));
+		
+		//if (forbidAlternatives && check_alternatives && t >= inst.num_vehicles && inst.customer_type(inst.vertex_customer(t)) >= Instance::intermittent_alternatives)
+			//label_t.customers.insert(inst.vertex_customer(t));
+		
+		if (inst.num_vehicles <= t) {
+			int* routes = new int[inst.num_routes];
+			for (int i = 0; i < inst.num_routes; i++) {
+				routes[i] = inst.customerroute_vertices(i + inst.num_routes).size();
+			}
+			label_t.routes = routes;
+		}
 		container.reset(t, label_t);
 	}
 
@@ -56,6 +67,8 @@ void SchedulingDecompApp::solveRelaxedLabeling(label_container_type& container, 
 		const int t = row.index();
 		if (exclude[t])
 			continue;
+
+		std::cout << "t: " << t << std::endl;
 
 		auto iter = std::lower_bound(includeindex.begin(), includeindex.end(), t);
 		int u = iter == includeindex.begin() ? 0 : *(iter - 1);
@@ -88,13 +101,22 @@ void SchedulingDecompApp::solveRelaxedLabeling(label_container_type& container, 
 				if (check_length && s < inst.num_vehicles && ((mincustomers && label_t.length < mincustomers[s] - 1) || (maxcustomers && label_t.length >= maxcustomers[s])))
 					continue;
 
-				if (forbidAlternatives && check_alternatives && s >= inst.num_vehicles && inst.customer_type(inst.vertex_customer(s)) >= Instance::intermittent_alternatives && label_t.customers.find(inst.vertex_customer(s)) != label_t.customers.end())
+				//if (forbidAlternatives && check_alternatives && s >= inst.num_vehicles && inst.customer_type(inst.vertex_customer(s)) >= Instance::intermittent_alternatives && label_t.customers.find(inst.vertex_customer(s)) != label_t.customers.end())
+				if (forbidAlternatives && check_alternatives && s >= inst.num_vehicles && label_t.routes[inst.vertex_route(s)] > 0)
 					continue;
 
 				label_type label_s(s, fuel_s, label_t.fRedCost + redCostF * cost_s_t + redCostY[t - inst.num_vehicles] + (s < inst.num_vehicles ? redCostV[s] : 0.0), label_t.fCost + cost_s_t, -1, &label_t, label_t.length + 1);
-				label_s.customers = label_t.customers;
-				if (forbidAlternatives && check_alternatives && s >= inst.num_vehicles && inst.customer_type(inst.vertex_customer(s)) >= Instance::intermittent_alternatives)
-					label_s.customers.insert(inst.vertex_customer(s));
+				label_s.routes = label_t.routes;
+				if (forbidAlternatives && check_alternatives && s >= inst.num_vehicles) {
+					for (auto route : inst.customer_routes(inst.vertex_customer(s))) {
+						label_s.routes[route] = route == inst.vertex_route(s) ? label_s.routes[route] - 1 : 0;
+					}
+				}
+
+				//label_s.customers = label_t.customers;
+				//if (forbidAlternatives && check_alternatives && s >= inst.num_vehicles && inst.customer_type(inst.vertex_customer(s)) >= Instance::intermittent_alternatives)
+				//	label_s.customers.insert(inst.vertex_customer(s));
+
 				container.insert(label_s);
 			}
 
@@ -124,13 +146,20 @@ void SchedulingDecompApp::solveRelaxedLabeling(label_container_type& container, 
 					if (check_length && s < inst.num_vehicles && ((mincustomers && label_t.length < mincustomers[s] - 1) || (maxcustomers && label_t.length >= maxcustomers[s])))
 						continue;
 
-					if (forbidAlternatives && check_alternatives && s >= inst.num_vehicles && inst.customer_type(inst.vertex_customer(s)) >= Instance::intermittent_alternatives && label_t.customers.find(inst.vertex_customer(s)) != label_t.customers.end())
+					//if (forbidAlternatives && check_alternatives && s >= inst.num_vehicles && inst.customer_type(inst.vertex_customer(s)) >= Instance::intermittent_alternatives && label_t.customers.find(inst.vertex_customer(s)) != label_t.customers.end())
+					if (forbidAlternatives && check_alternatives && s >= inst.num_vehicles && label_t.routes[inst.vertex_route(s) > 0])
 						continue;
 
 					label_type label_s(s, fuel_s, label_t.fRedCost + redCostF * cost_s_r_t + redCostY[t - inst.num_vehicles] + (s < inst.num_vehicles ? redCostV[s] : 0.0), label_t.fCost + cost_s_r_t, r, &label_t, label_t.length + 1);
-					label_s.customers = label_t.customers;
-					if (forbidAlternatives && check_alternatives && s >= inst.num_vehicles && inst.customer_type(inst.vertex_customer(s)) >= Instance::intermittent_alternatives)
-						label_s.customers.insert(inst.vertex_customer(s));
+					//label_s.customers = label_t.customers;
+					//if (forbidAlternatives && check_alternatives && s >= inst.num_vehicles && inst.customer_type(inst.vertex_customer(s)) >= Instance::intermittent_alternatives)
+					//	label_s.customers.insert(inst.vertex_customer(s));
+					label_s.routes = label_t.routes;
+					if (forbidAlternatives && check_alternatives && s >= inst.num_vehicles) {
+						for (auto route : inst.customer_routes(inst.vertex_customer(s))) {
+							label_s.routes[route] = route == inst.vertex_route(s) ? label_s.routes[route] - 1 : 0;
+						}
+					}
 					container.insert(label_s);
 				}
 			}
@@ -142,6 +171,8 @@ void SchedulingDecompApp::solveRelaxedLabeling(label_container_type& container, 
 			}
 		}
 	}
+
+	std::cout << "Step 3" << std::endl;
 
 	for (int w : vehicles) {
 		if (neg_rc[w].empty()) {

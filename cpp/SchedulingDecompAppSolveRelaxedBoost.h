@@ -13,7 +13,9 @@ struct spprc_resource_container
 
 	spprc_resource_container(int vertex, double cost, double reduced_cost, T fuel, int length, const vector<int>& routes) :
 		vertex(vertex), cost(cost), reduced_cost(reduced_cost), fuel(fuel), length(length), routes(routes)
-	{}
+	{
+		//std::cout << "vertex: " << vertex << ", cost: " << cost << ", reduced_cost: " << reduced_cost << ", fuel: " << fuel << ", length: " << length << std::endl;
+	}
 
 	spprc_resource_container(const spprc_resource_container& other) :
 		spprc_resource_container(other.vertex, other.cost, other.reduced_cost, other.fuel, other.length, other.routes)
@@ -94,6 +96,8 @@ public:
 		const int t = source(ed, g);
 		const int s = target(ed, g);
 
+		//std::cout << "(" << t << ", " << s << ") ";
+
 		if (t < num_vertices && exclude[t])
 			return false;
 
@@ -132,15 +136,23 @@ public:
 			return false;
 
 		vector<int> routes = old_cont.routes;
-		if (app.forbidAlternatives && app.inst.num_vehicles <= s && s < num_vertices)
-			for (int m : app.inst.customer_routes(app.inst.vertex_customer(s))) {
-				routes[m] = (m == app.inst.vertex_route(s)) ? routes[m]-1 : 0;
+		if (app.forbidAlternatives && app.inst.num_vehicles <= s && s < num_vertices) {
+			//std::cout << "c: " << app.inst.vertex_customer(s) << ", ";
+			//std::cout << "routes: " << app.inst.customer_routes(app.inst.vertex_customer(s)).size() << ", ";
+			vector<int> routes = app.inst.customer_routes(app.inst.vertex_customer(s));
+			//for (int m : app.inst.customer_routes(app.inst.vertex_customer(s))) {
+			for (int m = 0; m < routes.size(); m++) {
+				//std::cout << "m: " << m << ", routes[m]: " << routes[m] << ", ";
+				routes[m] = (m == app.inst.vertex_route(s)) ? routes[m] - 1 : 0;
 				if (routes[m] < 0)
 					return false;
 			}
+		}
 
 		new_cont.routes = routes;
 		// TODO: drop routes
+
+		//std::cout << ", true" << std::endl;
 
 		return true;
 	}
@@ -187,6 +199,8 @@ struct spprc_visitor {
 	};
 
 	void on_label_not_dominated(const spprc_label<T>& label, const boost_graph& graph) {
+
+		std::cout << "spprc_visitor: on_label_not_dominated" << std::endl;
 
 		const int num_vertices = app.inst.num_vehicles + app.inst.num_trips;
 

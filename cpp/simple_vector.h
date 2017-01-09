@@ -58,6 +58,10 @@ public:
 	void fill(T val) {
 		std::fill_n(data, elements, val);
 	}
+
+	int size() {
+		return elements;
+	}
 };
 
 // ############################################################################

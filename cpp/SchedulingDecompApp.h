@@ -95,7 +95,8 @@ public:
 	const Instance& inst;
 
 	const bool dropUnusedResources = false;
-	const bool forbidAlternatives = false;
+	//const bool forbidAlternatives = false;
+	const bool forbidAlternatives = true;
 	const bool findExactCover = true;
 
 private:
@@ -195,6 +196,9 @@ public:
 	template<typename T>
 	DecompVar* path(const label_base<T>& vehicle)  {
 
+		std::cout << "path(): ";
+		vehicle.print();
+
 		assert(0 <= vehicle.vertex && vehicle.vertex < inst.num_vehicles);
 
 		vector<int> indices;
@@ -210,6 +214,7 @@ public:
 			indices.push_back(indexY(vehicle.vertex, l->vertex - inst.num_vehicles));
 			values.push_back(1.0);
 
+			// TODO
 			if (forbidAlternatives && !customerset.insert(inst.vertex_customer(l->vertex)).second)
 				throw std::exception("duplicate customer in column");
 		}
