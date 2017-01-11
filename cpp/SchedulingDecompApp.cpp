@@ -482,33 +482,32 @@ bool SchedulingDecompApp::solveRelaxedAll(const double* redCost, const double* c
 	}
 	std::cout << std::endl;
 
-	//TODO: minlength instead of mincustomers, maxlength instead of maxcustomers
-	int* mincustomers = new int[inst.num_vehicles];
-	std::fill_n(mincustomers, inst.num_vehicles, 0);
+	int* minlength = new int[inst.num_vehicles];
+	std::fill_n(minlength, inst.num_vehicles, 0);
 	for (int v = 0; v < inst.num_vehicles; v++)
-		mincustomers[v] = (int)ceil(max(lowerbounds[indexR(v)], 0.0) - DecompEpsilon);
+		minlength[v] = (int)ceil(max(lowerbounds[indexR(v)], 0.0) - DecompEpsilon);
 
 	bool nontrivial = false;
 	for (int v = 0; v < inst.num_vehicles; v++)
-		if (mincustomers[v] > 0)
+		if (minlength[v] > 0)
 			nontrivial = true;
 	if (!nontrivial) {
-		delete[] mincustomers;
-		mincustomers = NULL;
+		delete[] minlength;
+		minlength = NULL;
 	}
 
-	int* maxcustomers = new int[inst.num_vehicles];
-	std::fill_n(maxcustomers, inst.num_vehicles, inst.num_trips);
+	int* maxlength = new int[inst.num_vehicles];
+	std::fill_n(maxlength, inst.num_vehicles, inst.num_trips);
 	for (int v = 0; v < inst.num_vehicles; v++)
-		maxcustomers[v] = (int)floor(min(upperbounds[indexR(v)], (double)inst.num_trips) + DecompEpsilon);
+		maxlength[v] = (int)floor(min(upperbounds[indexR(v)], (double)inst.num_trips) + DecompEpsilon);
 
 	nontrivial = false;
 	for (int v = 0; v < inst.num_vehicles; v++)
-		if (maxcustomers[v] < inst.num_trips)
+		if (maxlength[v] < inst.num_trips)
 			nontrivial = true;
 	if (!nontrivial) {
-		delete[] maxcustomers;
-		maxcustomers = NULL;
+		delete[] maxlength;
+		maxlength = NULL;
 	}
 
 	std::fill(states.begin(), states.end(), DecompSolStatNoSolution);
@@ -580,7 +579,7 @@ bool SchedulingDecompApp::solveRelaxedAll(const double* redCost, const double* c
 		auto time_start = std::chrono::high_resolution_clock::now();
 
 		label_container_pareto<discrete_label<int, 100>> labels(num_vertices);
-		solveRelaxedLabeling<discrete_label<int, 100>, label_container_pareto<discrete_label<int, 100>>, true, true, true>(labels, current_block.redCostF, current_block.redCostY, current_block.redCostV, convexDuals, current_block.include, current_block.exclude, mincustomers, maxcustomers, current_block.varList, states);
+		solveRelaxedLabeling<discrete_label<int, 100>, label_container_pareto<discrete_label<int, 100>>, true, true, true>(labels, current_block.redCostF, current_block.redCostY, current_block.redCostV, convexDuals, current_block.include, current_block.exclude, minlength, maxlength, current_block.varList, states);
 
 		bool nosolution = true;
 		for (DecompVar* var : current_block.varList) {
@@ -588,7 +587,7 @@ bool SchedulingDecompApp::solveRelaxedAll(const double* redCost, const double* c
 		}
 
 		if (nosolution) {
-			solveRelaxedBoost<exact>(current_block.redCostF, current_block.redCostY, current_block.redCostV, convexDuals, current_block.include, current_block.exclude, mincustomers, maxcustomers, current_block.varList, states);
+			solveRelaxedBoost<exact>(current_block.redCostF, current_block.redCostY, current_block.redCostV, convexDuals, current_block.include, current_block.exclude, minlength, maxlength, current_block.varList, states);
 
 			for (int w = 0; w < inst.num_vehicles; w++)
 				if (!current_block.exclude[w])
@@ -685,7 +684,7 @@ bool SchedulingDecompApp::solveRelaxedAll(const double* redCost, const double* c
 					delete var;
 				current_block.varList.clear();
 
-				solveRelaxedBoost<exact>(current_block.redCostF, current_block.redCostY, current_block.redCostV, convexDuals, current_block.include, current_block.exclude, mincustomers, maxcustomers, current_block.varList, states);
+				solveRelaxedBoost<exact>(current_block.redCostF, current_block.redCostY, current_block.redCostV, convexDuals, current_block.include, current_block.exclude, minlength, maxlength, current_block.varList, states);
 
 				for (int w = 0; w < inst.num_vehicles; w++)
 					if (!current_block.exclude[w])
@@ -772,10 +771,10 @@ bool SchedulingDecompApp::solveRelaxedAll(const double* redCost, const double* c
 	delete[] excludes;
 	delete[] includes;
 
-	if (mincustomers)
-		delete[] mincustomers;
-	if (maxcustomers)
-		delete[] maxcustomers;
+	if (minlength)
+		delete[] minlength;
+	if (maxlength)
+		delete[] maxlength;
 
 	printf("<< SchedulingDecompApp::solvedRelaxedAll()\n");
 

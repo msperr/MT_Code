@@ -25,8 +25,7 @@ struct label_base {
 	int length = 0;
 
 	//set<int> customers;
-	//vector<int> routes;
-	int* routes;
+	set<int> routes;
 
 	label_base(int vertex, T fuel, double fRedCost, double fCost, int refuelpoint, const label_base<T>* successor, int length) :
 		vertex(vertex), fuel(fuel), fRedCost(fRedCost), fCost(fCost), refuelpoint(refuelpoint), successor(successor), length(length) {

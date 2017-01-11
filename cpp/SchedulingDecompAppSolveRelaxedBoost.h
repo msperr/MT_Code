@@ -11,7 +11,7 @@ struct spprc_resource_container
 		vertex(vertex), cost(cost), reduced_cost(reduced_cost), fuel(fuel), length(length)
 	{}
 
-	spprc_resource_container(int vertex, double cost, double reduced_cost, T fuel, int length, const vector<int>& routes) :
+	spprc_resource_container(int vertex, double cost, double reduced_cost, T fuel, int length, const set<int>& routes) :
 		vertex(vertex), cost(cost), reduced_cost(reduced_cost), fuel(fuel), length(length), routes(routes)
 	{
 		//std::cout << "vertex: " << vertex << ", cost: " << cost << ", reduced_cost: " << reduced_cost << ", fuel: " << fuel << ", length: " << length << std::endl;
@@ -36,7 +36,7 @@ struct spprc_resource_container
 	//int numcustomers;
 	//set<int> customers;
 	int length;
-	vector<int> routes;
+	set<int> routes;
 };
 
 template<typename T>
@@ -50,11 +50,10 @@ template<typename T>
 bool operator<(const spprc_resource_container<T>& lhs, const spprc_resource_container<T>& rhs)
 {
 	//return lhs.vertex > rhs.vertex || (lhs.vertex == rhs.vertex && (lhs.reduced_cost < rhs.reduced_cost || (lhs.reduced_cost == rhs.reduced_cost && (lhs.fuel < rhs.fuel || (lhs.fuel == rhs.fuel && (lhs.customers < rhs.customers))))));
-	// TODO: Compare Routes?
-	return lhs.vertex > rhs.vertex || lhs.vertex == rhs.vertex &&
-		(lhs.reduced_cost < rhs.reduced_cost || lhs.reduced_cost == rhs.reduced_cost &&
-		(lhs.fuel < rhs.fuel || lhs.fuel == rhs.fuel &&
-		(lhs.routes < rhs.routes)));
+	return lhs.vertex > rhs.vertex || (lhs.vertex == rhs.vertex &&
+		(lhs.reduced_cost < rhs.reduced_cost || (lhs.reduced_cost == rhs.reduced_cost &&
+		(lhs.fuel < rhs.fuel || (lhs.fuel == rhs.fuel &&
+		(lhs.routes < rhs.routes))))));
 }
 
 template<algorithm_type mode, typename fuel_level_type = std::conditional<mode == exact, double, int>::type>
@@ -69,13 +68,13 @@ public:
 	const double redCostF;
 	const double* redCostY;
 	const double* redCostV;
-	const int* mincustomers;
-	const int* maxcustomers;
+	const int* minlength;
+	const int* maxlength;
 
 	vector<int> includeindex;
 
-	spprc_ref(const SchedulingDecompApp& app, fuel_level_type max_fuel_level, const bool* include, const bool* exclude, double redCostF, const double* redCostY, const double* redCostV, const int* mincustomers, const int* maxcustomers) : 
-		app(app), max_fuel_level(max_fuel_level), include(include), exclude(exclude), redCostF(redCostF), redCostY(redCostY), redCostV(redCostV), mincustomers(mincustomers), maxcustomers(maxcustomers)
+	spprc_ref(const SchedulingDecompApp& app, fuel_level_type max_fuel_level, const bool* include, const bool* exclude, double redCostF, const double* redCostY, const double* redCostV, const int* minlength, const int* maxlength) : 
+		app(app), max_fuel_level(max_fuel_level), include(include), exclude(exclude), redCostF(redCostF), redCostY(redCostY), redCostV(redCostV), minlength(minlength), maxlength(maxlength)
 	{
 		const int num_vertices = app.inst.num_vehicles + app.inst.num_trips;
 		includeindex.clear();
@@ -85,7 +84,7 @@ public:
 	}
 
 	spprc_ref(const spprc_ref& other) :
-		spprc_ref(other.app, other.max_fuel_level, other.include, other.exclude, other.redCostF, other.redCostY, other.RedCostV, other.mincustomers, other.maxcustomers)
+		spprc_ref(other.app, other.max_fuel_level, other.include, other.exclude, other.redCostF, other.redCostY, other.RedCostV, other.minlength, other.maxlength)
 	{}
 
 	inline bool operator()(const boost_graph& g, spprc_resource_container<fuel_level_type>& new_cont, const spprc_resource_container<fuel_level_type>& old_cont, boost::graph_traits<boost_graph>::edge_descriptor ed) const
@@ -96,7 +95,7 @@ public:
 		const int t = source(ed, g);
 		const int s = target(ed, g);
 
-		//std::cout << "(" << t << ", " << s << ") ";
+		std::cout << "(" << s << ", " << t << ") ";
 
 		if (t < num_vertices && exclude[t])
 			return false;
@@ -113,7 +112,7 @@ public:
 		new_cont.reduced_cost = old_cont.reduced_cost + redCostF * arc_prop.cost_s_r_t + (app.inst.num_vehicles <= t && t < num_vertices ? redCostY[t - app.inst.num_vehicles] : 0.0) + (s < app.inst.num_vehicles && t < num_vertices ? redCostV[s] : 0.0);
 		new_cont.cost = old_cont.cost + arc_prop.cost_s_r_t;
 		fuel_level_type& fuel = new_cont.fuel;
-		new_cont.length = old_cont.length + (s >= app.inst.num_vehicles && (mincustomers || maxcustomers) ? 1 : 0);
+		new_cont.length = old_cont.length + (s >= app.inst.num_vehicles && (minlength || maxlength) ? 1 : 0);
 
 		fuel = mode == exact ?
 			old_cont.fuel + arc_prop.fuel_t + arc_prop.fuel_r_t :
@@ -132,27 +131,28 @@ public:
 		if (s < app.inst.num_vehicles && fuel > app.inst.vehicle_initial_fuel(s) * max_fuel_level)
 			return false;
 
-		if (s < app.inst.num_vehicles && ((mincustomers && new_cont.length < mincustomers[s]) || (maxcustomers && maxcustomers[s] < new_cont.length)))
+		if (s < app.inst.num_vehicles && ((minlength && new_cont.length < minlength[s]) || (maxlength && maxlength[s] < new_cont.length)))
 			return false;
 
-		vector<int> routes = old_cont.routes;
-		if (app.forbidAlternatives && app.inst.num_vehicles <= s && s < num_vertices) {
-			//std::cout << "c: " << app.inst.vertex_customer(s) << ", ";
-			//std::cout << "routes: " << app.inst.customer_routes(app.inst.vertex_customer(s)).size() << ", ";
-			vector<int> routes = app.inst.customer_routes(app.inst.vertex_customer(s));
-			//for (int m : app.inst.customer_routes(app.inst.vertex_customer(s))) {
-			for (int m = 0; m < routes.size(); m++) {
-				//std::cout << "m: " << m << ", routes[m]: " << routes[m] << ", ";
-				routes[m] = (m == app.inst.vertex_route(s)) ? routes[m] - 1 : 0;
-				if (routes[m] < 0)
+		/*new_cont.customers = old_cont.customers;
+		if (app.forbidAlternatives) {
+			if (app.inst.num_vehicles <= s && s < num_vertices && app.inst.customer_type(app.inst.vertex_customer(s)) >= Instance::intermittent_alternatives)
+				if (!new_cont.customers.insert(app.inst.vertex_customer(s)).second)
 					return false;
+			for (int c : arc_prop.drop_customers)
+				new_cont.customers.erase(c);
+		}*/
+		new_cont.routes = old_cont.routes;
+		if (app.forbidAlternatives)
+			if (app.inst.num_vehicles <= s && s < num_vertices) {
+				for (auto route : app.inst.customer_routes(app.inst.vertex_customer(s)))
+					if (route != app.inst.vertex_route(s) && new_cont.routes.find(route) != new_cont.routes.end())
+						return false;
+				new_cont.routes.insert(app.inst.vertex_route(s));
 			}
-		}
-
-		new_cont.routes = routes;
 		// TODO: drop routes
 
-		//std::cout << ", true" << std::endl;
+		std::cout << "true" << std::endl;
 
 		return true;
 	}
@@ -200,7 +200,7 @@ struct spprc_visitor {
 
 	void on_label_not_dominated(const spprc_label<T>& label, const boost_graph& graph) {
 
-		std::cout << "spprc_visitor: on_label_not_dominated" << std::endl;
+		//std::cout << "spprc_visitor: on_label_not_dominated" << std::endl;
 
 		const int num_vertices = app.inst.num_vehicles + app.inst.num_trips;
 
@@ -248,7 +248,7 @@ struct spprc_visitor {
 };
 
 template<algorithm_type mode>
-void SchedulingDecompApp::solveRelaxedBoost(const double redCostF, const double* redCostY, const double* redCostV, const double* convexDuals, const bool* include, const bool* exclude, const int* mincustomers, const int* maxcustomers, DecompVarList& varList, vector<DecompSolverStatus>& states) {
+void SchedulingDecompApp::solveRelaxedBoost(const double redCostF, const double* redCostY, const double* redCostV, const double* convexDuals, const bool* include, const bool* exclude, const int* minlength, const int* maxlength, DecompVarList& varList, vector<DecompSolverStatus>& states) {
 
 	printf(">> SchedulingDecompApp::solveRelaxedBoost()\n");
 
@@ -270,7 +270,7 @@ void SchedulingDecompApp::solveRelaxedBoost(const double redCostF, const double*
 		vector<vector<boost::graph_traits<boost_graph>::edge_descriptor>>(),
 		vector<spprc_resource_container<fuel_level_type>>(),
 		spprc_resource_container<fuel_level_type>(),
-		spprc_ref<mode>(*this, max_fuel_level, include, exclude, redCostF, redCostY, redCostV, mincustomers, maxcustomers),
+		spprc_ref<mode>(*this, max_fuel_level, include, exclude, redCostF, redCostY, redCostV, minlength, maxlength),
 		spprc_dominance<fuel_level_type>(),
 		boost::default_r_c_shortest_paths_allocator(),
 		spprc_visitor<fuel_level_type>(*this, convexDuals, varLists)

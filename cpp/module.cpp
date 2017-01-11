@@ -50,7 +50,7 @@ DLLEXPORT PyObject* Solve(PyObject* self, PyObject* args)
 			for (auto param : section.second)
 				utilParam.Add(section.first, param.first, param.second.str());
 
-		pInstance.analyse();
+		//pInstance.analyse();
 
 		SchedulingDecompApp sip(utilParam, pInstance, pInitialSolution);
 		SchedulingAlgoPC* algo = new SchedulingAlgoPC(&sip, utilParam);
